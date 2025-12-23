@@ -8,9 +8,10 @@ interface ExerciseImageModalProps {
     imageUrl: string | null;
     isLoading: boolean;
     error: string | null;
+    onRegenerate?: () => void;
 }
 
-const ExerciseImageModal = ({ isOpen, onClose, exerciseName, imageUrl, isLoading, error }: ExerciseImageModalProps) => {
+const ExerciseImageModal = ({ isOpen, onClose, exerciseName, imageUrl, isLoading, error, onRegenerate }: ExerciseImageModalProps) => {
     return (
         <AnimatePresence>
             {isOpen && (
@@ -65,8 +66,18 @@ const ExerciseImageModal = ({ isOpen, onClose, exerciseName, imageUrl, isLoading
                                 ) : null}
                             </div>
 
-                            <div className="p-4 bg-dark-800 text-xs text-dark-400 text-center">
-                                Generated instructions highlight the active muscle group.
+                            <div className="p-4 bg-dark-800 flex items-center justify-between gap-4">
+                                <p className="text-xs text-dark-400">
+                                    Generated instructions highlight the active muscle group.
+                                </p>
+                                {onRegenerate && !isLoading && !error && (
+                                    <button
+                                        onClick={onRegenerate}
+                                        className="px-4 py-2 rounded-xl bg-dark-700 hover:bg-dark-600 text-white text-xs font-medium transition-colors"
+                                    >
+                                        Regenerate Image
+                                    </button>
+                                )}
                             </div>
                         </motion.div>
                     </motion.div>

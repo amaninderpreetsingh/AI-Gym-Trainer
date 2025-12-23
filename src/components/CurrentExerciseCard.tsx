@@ -57,8 +57,8 @@ const CurrentExerciseCard = ({
         const checkStoredImage = async () => {
             if (exercise.name) {
                 try {
-                    // Global check - no userId needed
-                    const stored = await getStoredExerciseImage(exercise.name);
+                    // Check for user-specific image first, then global
+                    const stored = await getStoredExerciseImage(exercise.name, user?.uid);
                     if (stored) {
                         setHasStoredImage(true);
                     }
@@ -123,8 +123,8 @@ const CurrentExerciseCard = ({
         setImageError(null);
 
         try {
-            // Check global cache first
-            const storedImage = await getStoredExerciseImage(exercise.name);
+            // Check global cache or user cache
+            const storedImage = await getStoredExerciseImage(exercise.name, user.uid);
 
             if (storedImage) {
                 setImageUrl(storedImage.imageUrl);
@@ -134,13 +134,33 @@ const CurrentExerciseCard = ({
                 const generatedUrl = await generateExerciseImage(exercise.name, exercise.muscleGroup);
                 setImageUrl(generatedUrl);
 
-                // Cache it globally
                 await saveExerciseImage(exercise.name, generatedUrl, `Visual guide for ${exercise.name}`);
                 setHasStoredImage(true);
             }
         } catch (err: any) {
             console.error(err);
             setImageError(err.message || "Failed to load visualization");
+        } finally {
+            setIsGeneratingImage(false);
+        }
+    };
+
+    const handleRegenerate = async () => {
+        if (!user) return;
+        setIsGeneratingImage(true);
+        setImageError(null);
+
+        try {
+            const generatedUrl = await generateExerciseImage(exercise.name, exercise.muscleGroup);
+            setImageUrl(generatedUrl);
+
+            // Save specifically for this user to override global
+            await saveExerciseImage(exercise.name, generatedUrl, `Visual guide (Custom) for ${exercise.name}`, user.uid);
+
+            setHasStoredImage(true);
+        } catch (err: any) {
+            console.error(err);
+            setImageError(err.message || "Failed to regenerate visualization");
         } finally {
             setIsGeneratingImage(false);
         }
@@ -377,6 +397,7 @@ const CurrentExerciseCard = ({
                 imageUrl={imageUrl}
                 isLoading={isGeneratingImage}
                 error={imageError}
+                onRegenerate={handleRegenerate}
             />
         </motion.div>
     );
