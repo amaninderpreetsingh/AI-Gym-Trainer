@@ -443,14 +443,6 @@ const ActiveSession = () => {
                 <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    onClick={handleFinishClick}
-                    className="px-3 py-1.5 rounded-lg bg-primary-500/10 text-primary-400 text-sm font-medium hover:bg-primary-500/20 transition-colors mr-2"
-                >
-                    Finish
-                </motion.button>
-                <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
                     onClick={() => handleEndSession(false)}
                     className="p-2 rounded-lg hover:bg-dark-800 transition-colors"
                     title="End workout without saving"
@@ -606,8 +598,9 @@ const ActiveSession = () => {
                     )}
                 </AnimatePresence>
 
-                {/* Listening Indicator */}
-                <div className="flex justify-center py-2">
+                {/* Footer Controls: Mic & Finish */}
+                <div className="flex items-center justify-center gap-6 py-2">
+                    {/* Mic Button */}
                     <div onClick={toggleListening} className="cursor-pointer">
                         <ListeningIndicator
                             isListening={isListening}
@@ -615,6 +608,16 @@ const ActiveSession = () => {
                             error={micError}
                         />
                     </div>
+
+                    {/* Finish Button */}
+                    <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={handleFinishClick}
+                        className="px-5 py-3 rounded-xl bg-primary-500/10 text-primary-400 font-medium hover:bg-primary-500/20 transition-colors border border-primary-500/20 shadow-lg shadow-primary-900/20"
+                    >
+                        Finish
+                    </motion.button>
                 </div>
             </div>
 

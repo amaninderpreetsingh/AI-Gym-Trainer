@@ -66,7 +66,7 @@ export const generateExerciseImage = async (exerciseName: string, muscleGroup: s
         // Real implementation using the Nano Banana Pro model as requested
         const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/nano-banana-pro-preview:generateContent?key=${API_KEY}`;
 
-        const promptText = `Generate a black and white educational fitness illustration of ${exerciseName}. Split view showing starting and ending positions. Highlight ${muscleGroup} muscle in red. Anatomically accurate, educational, white background.`;
+        const promptText = `Generate a two-panel, black and white anatomical fitness illustration showing the execution of ${exerciseName}. The left panel displays the starting position, and the right panel shows the ending position. The illustration is an accurate line drawing with cross-hatching for shading. Highlight ${muscleGroup} muscle in red. Anatomically accurate and the background is pure white.`
 
         console.log(`[AI Service] Generating image for ${exerciseName} using Nano Banana Pro...`);
 

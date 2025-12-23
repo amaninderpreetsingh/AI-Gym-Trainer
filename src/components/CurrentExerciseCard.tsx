@@ -52,9 +52,10 @@ const CurrentExerciseCard = ({
         setImageError(null);
 
         const checkStoredImage = async () => {
-            if (user?.uid && exercise.name) {
+            if (exercise.name) {
                 try {
-                    const stored = await getStoredExerciseImage(user.uid, exercise.name);
+                    // Global check - no userId needed
+                    const stored = await getStoredExerciseImage(exercise.name);
                     if (stored) {
                         setHasStoredImage(true);
                     }
@@ -65,7 +66,7 @@ const CurrentExerciseCard = ({
         };
 
         checkStoredImage();
-    }, [exercise.name, user?.uid]);
+    }, [exercise.name]);
 
     const allSetsComplete = currentSet > totalSets;
 
@@ -104,14 +105,14 @@ const CurrentExerciseCard = ({
         setShowImageModal(true);
         if (imageUrl) return; // Already loaded via cache or previous gen
 
-        if (!user) return;
+        if (!user) return; // Still require user logged in for permission to generate/view? Assume yes for app usage.
 
         setIsGeneratingImage(true);
         setImageError(null);
 
         try {
-            // Check cache first
-            const storedImage = await getStoredExerciseImage(user.uid, exercise.name);
+            // Check global cache first
+            const storedImage = await getStoredExerciseImage(exercise.name);
 
             if (storedImage) {
                 setImageUrl(storedImage.imageUrl);
@@ -121,10 +122,8 @@ const CurrentExerciseCard = ({
                 const generatedUrl = await generateExerciseImage(exercise.name, exercise.muscleGroup);
                 setImageUrl(generatedUrl);
 
-                // Cache it
-                // Note: generatedUrl here is a string (URL or Base64). 
-                // We mock it for now as "Nano Banana Pro" simulation.
-                await saveExerciseImage(user.uid, exercise.name, generatedUrl, `Visual guide for ${exercise.name}`);
+                // Cache it globally
+                await saveExerciseImage(exercise.name, generatedUrl, `Visual guide for ${exercise.name}`);
                 setHasStoredImage(true);
             }
         } catch (err: any) {
@@ -176,8 +175,8 @@ const CurrentExerciseCard = ({
                         <button
                             onClick={handleShowImage}
                             className={`p-1.5 rounded-full transition-colors ${hasStoredImage
-                                    ? 'bg-green-500/10 text-green-400 hover:bg-green-500/20 hover:text-green-300'
-                                    : 'bg-dark-700 text-dark-400 hover:bg-primary-500/20 hover:text-primary-400'
+                                ? 'bg-green-500/10 text-green-400 hover:bg-green-500/20 hover:text-green-300'
+                                : 'bg-dark-700 text-dark-400 hover:bg-primary-500/20 hover:text-primary-400'
                                 }`}
                             title={hasStoredImage ? "View Visual Guide" : "Generate Visual Guide"}
                         >

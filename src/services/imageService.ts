@@ -7,11 +7,12 @@ export interface ExerciseImage {
     prompt: string;
 }
 
-export const getStoredExerciseImage = async (userId: string, exerciseName: string): Promise<ExerciseImage | null> => {
+export const getStoredExerciseImage = async (exerciseName: string): Promise<ExerciseImage | null> => {
     try {
         // Sanitize exercise name to use as document ID (remove special chars/spaces)
         const docId = exerciseName.toLowerCase().replace(/[^a-z0-9]/g, '_');
-        const docRef = doc(db, 'users', userId, 'exerciseImages', docId);
+        // Store in a global root-level collection for shared access
+        const docRef = doc(db, 'exercise_images', docId);
         const docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {
@@ -29,10 +30,11 @@ export const getStoredExerciseImage = async (userId: string, exerciseName: strin
     }
 };
 
-export const saveExerciseImage = async (userId: string, exerciseName: string, imageUrl: string, prompt: string): Promise<void> => {
+export const saveExerciseImage = async (exerciseName: string, imageUrl: string, prompt: string): Promise<void> => {
     try {
         const docId = exerciseName.toLowerCase().replace(/[^a-z0-9]/g, '_');
-        const docRef = doc(db, 'users', userId, 'exerciseImages', docId);
+        // Store in a global root-level collection for shared access
+        const docRef = doc(db, 'exercise_images', docId);
 
         await setDoc(docRef, {
             imageUrl,
