@@ -1,14 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, X, Timer, Dumbbell, Volume2, VolumeX, Settings, Mic } from 'lucide-react';
+import { ArrowLeft, X, Timer, Dumbbell, Settings, Mic, ChevronDown, CheckCircle, List } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSettings } from '../contexts/SettingsContext';
 import { getRoutine, getExerciseMuscleGroupMap } from '../services/routineService';
 import { saveWorkoutLog } from '../services/workoutLogService';
 import { Routine, CompletedExercise, LoggedSet } from '../types';
 import CurrentExerciseCard from '../components/CurrentExerciseCard';
-import NextUpPreview from '../components/NextUpPreview';
 import ListeningIndicator from '../components/ListeningIndicator';
 import useTextToSpeech from '../hooks/useTextToSpeech';
 import useSpeechRecognition from '../hooks/useSpeechRecognition';
@@ -45,6 +44,7 @@ const ActiveSession = () => {
     const resetTranscript = browserSpeech.resetTranscript;
     const isSupported = browserSpeech.isSupported;
     const [micError, setMicError] = useState<string | null>(null);
+    const [showExerciseDropdown, setShowExerciseDropdown] = useState(false);
 
     const currentExercise = routine?.exercises[currentExerciseIndex];
     const isLastExercise = currentExerciseIndex === (routine?.exercises.length || 0) - 1;
@@ -162,6 +162,14 @@ const ActiveSession = () => {
         }
     };
 
+    const updateSetIndexForExercise = (exerciseIndex: number) => {
+        const exercise = routine?.exercises[exerciseIndex];
+        if (!exercise) return;
+
+        const completed = completedExercises.find(e => e.name === exercise.name);
+        setCurrentSetIndex((completed?.sets.length || 0) + 1);
+    };
+
     const handleNextExercise = (exercisesOverride?: CompletedExercise[]) => {
         if (isLastExercise) {
             if (voiceEnabled) {
@@ -169,13 +177,31 @@ const ActiveSession = () => {
             }
             handleEndSession(true, exercisesOverride);
         } else {
-            const nextExercise = routine?.exercises[currentExerciseIndex + 1];
+            const nextIndex = currentExerciseIndex + 1;
+            const nextExercise = routine?.exercises[nextIndex];
             if (nextExercise && voiceEnabled) {
                 announceNextExercise(nextExercise.name);
             }
-            setCurrentExerciseIndex((prev) => prev + 1);
-            setCurrentSetIndex(1);
+            setCurrentExerciseIndex(nextIndex);
+            updateSetIndexForExercise(nextIndex);
         }
+    };
+
+
+
+    const handleUpdateSet = (setIndex: number, weight: number, reps: number) => {
+        if (!currentExercise) return;
+
+        setCompletedExercises(prev => prev.map(e => {
+            if (e.name === currentExercise.name) {
+                const newSets = [...e.sets];
+                if (newSets[setIndex]) {
+                    newSets[setIndex] = { ...newSets[setIndex], weight, reps };
+                }
+                return { ...e, sets: newSets };
+            }
+            return e;
+        }));
     };
 
     // Handle voice commands - use regular function to avoid stale closure
@@ -251,9 +277,7 @@ const ActiveSession = () => {
         }
     };
 
-    const toggleVoice = () => {
-        setVoiceEnabled((prev) => !prev);
-    };
+
 
     if (isLoading) {
         return (
@@ -396,19 +420,10 @@ const ActiveSession = () => {
                         Free
                     </div>
 
-                    {/* Voice toggle */}
-                    <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={toggleVoice}
-                        className={`p-1.5 rounded-lg transition-colors ${voiceEnabled ? 'text-primary-400' : 'text-dark-500'}`}
-                        title={voiceEnabled ? 'Mute voice' : 'Enable voice'}
-                    >
-                        {voiceEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-                    </motion.button>
+
                 </div>
 
-                <span className="text-sm font-medium text-dark-300">{routine.name}</span>
+
 
                 <motion.button
                     whileHover={{ scale: 1.05 }}
@@ -451,6 +466,68 @@ const ActiveSession = () => {
 
             {/* Main Content */}
             <div className="flex-1 flex flex-col p-4 gap-6 overflow-y-auto">
+                {/* Exercise Dropdown */}
+                <div className="relative z-50 w-full max-w-lg mx-auto">
+                    <button
+                        onClick={() => setShowExerciseDropdown(!showExerciseDropdown)}
+                        className="flex items-center gap-3 px-4 py-3 rounded-xl bg-dark-800 border border-dark-700 hover:border-primary-500/50 hover:bg-dark-700/50 transition-all w-full"
+                    >
+                        <div className="p-1 rounded bg-primary-500/10 text-primary-400">
+                            <List className="w-4 h-4" />
+                        </div>
+                        <span className="flex-1 text-sm font-medium text-white truncate text-left">
+                            {currentExerciseIndex + 1}. {currentExercise?.name || routine.name}
+                        </span>
+                        <ChevronDown className={`w-4 h-4 text-dark-400 transition-transform ${showExerciseDropdown ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    <AnimatePresence>
+                        {showExerciseDropdown && (
+                            <>
+                                <div
+                                    className="fixed inset-0 z-40"
+                                    onClick={() => setShowExerciseDropdown(false)}
+                                />
+                                <motion.div
+                                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                    className="absolute top-full left-0 right-0 mt-2 max-h-[60vh] overflow-y-auto bg-dark-800 border border-dark-700 rounded-xl shadow-xl z-50 py-1"
+                                >
+                                    {routine.exercises.map((ex, idx) => {
+                                        const isComplete = completedExercises.find(e => e.name === ex.name)?.sets.length === ex.targetSets;
+                                        return (
+                                            <button
+                                                key={idx}
+                                                onClick={() => {
+                                                    setCurrentExerciseIndex(idx);
+                                                    updateSetIndexForExercise(idx);
+                                                    setShowExerciseDropdown(false);
+                                                }}
+                                                className={`w-full text-left px-4 py-3 hover:bg-dark-700 flex items-center justify-between gap-3 ${idx === currentExerciseIndex ? 'bg-primary-500/10' : ''
+                                                    }`}
+                                            >
+                                                <div className="flex-1 min-w-0">
+                                                    <p className={`text-sm font-medium truncate ${idx === currentExerciseIndex ? 'text-primary-400' : 'text-white'
+                                                        }`}>
+                                                        {idx + 1}. {ex.name}
+                                                    </p>
+                                                    <p className="text-xs text-dark-500">
+                                                        {ex.targetSets} sets × {ex.targetReps} reps
+                                                    </p>
+                                                </div>
+                                                {isComplete && (
+                                                    <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0" />
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                </motion.div>
+                            </>
+                        )}
+                    </AnimatePresence>
+                </div>
+
                 <AnimatePresence mode="wait">
                     {currentExercise && (
                         <CurrentExerciseCard
@@ -458,9 +535,11 @@ const ActiveSession = () => {
                             exercise={currentExercise}
                             currentSet={currentSetIndex}
                             totalSets={currentExercise.targetSets}
+                            completedSets={getCurrentExerciseLog()?.sets || []}
                             lastWeight={getLastLoggedSet()?.weight}
                             lastReps={getLastLoggedSet()?.reps}
                             onLogSet={handleLogSet}
+                            onUpdateSet={handleUpdateSet}
                             onNextExercise={handleNextExercise}
                             isLastExercise={isLastExercise}
                         />
@@ -477,14 +556,6 @@ const ActiveSession = () => {
                         />
                     </div>
                 </div>
-
-                {/* Next Up Preview */}
-                {routine && (
-                    <NextUpPreview
-                        exercises={routine.exercises}
-                        currentIndex={currentExerciseIndex}
-                    />
-                )}
             </div>
 
             {/* Progress Bar */}

@@ -1,16 +1,19 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, Check } from 'lucide-react';
-import { Exercise } from '../types';
+import { ChevronRight, Check, Edit2, Save, X as XIcon } from 'lucide-react';
+import { Exercise, LoggedSet } from '../types';
 
 interface CurrentExerciseCardProps {
     exercise: Exercise;
     currentSet: number;
     totalSets: number;
+    completedSets: LoggedSet[];
     lastWeight?: number;
     lastReps?: number;
     onLogSet: (weight: number, reps: number) => void;
+    onUpdateSet: (index: number, weight: number, reps: number) => void;
     onNextExercise?: () => void;
+
     isLastExercise: boolean;
 }
 
@@ -18,14 +21,21 @@ const CurrentExerciseCard = ({
     exercise,
     currentSet,
     totalSets,
+    completedSets,
     lastWeight,
-    lastReps,
     onLogSet,
+    onUpdateSet,
     onNextExercise,
+
     isLastExercise
 }: CurrentExerciseCardProps) => {
+    // ... (existing state) ...
     const [weight, setWeight] = useState<string>(lastWeight?.toString() || '');
     const [reps, setReps] = useState<string>(exercise.targetReps.toString());
+    const [editingIndex, setEditingIndex] = useState<number | null>(null);
+    const [editWeight, setEditWeight] = useState('');
+    const [editReps, setEditReps] = useState('');
+
     const allSetsComplete = currentSet > totalSets;
 
     const handleLogSet = () => {
@@ -38,6 +48,21 @@ const CurrentExerciseCard = ({
             setWeight(w.toString());
             setReps(exercise.targetReps.toString());
         }
+    };
+
+    // ... (existing helper functions startEditing, saveEdit, handleFinish) ...
+
+    const startEditing = (index: number, set: LoggedSet) => {
+        setEditingIndex(index);
+        setEditWeight(set.weight.toString());
+        setEditReps(set.reps.toString());
+    };
+
+    const saveEdit = (index: number) => {
+        const w = parseFloat(editWeight) || 0;
+        const r = parseInt(editReps) || 0;
+        onUpdateSet(index, w, r);
+        setEditingIndex(null);
     };
 
     const handleFinish = () => {
@@ -54,12 +79,13 @@ const CurrentExerciseCard = ({
             className="w-full max-w-lg mx-auto"
         >
             {/* Main Card */}
-            <div className="relative rounded-3xl bg-gradient-to-br from-dark-800 to-dark-900 border border-dark-700/50 overflow-hidden">
+            <div className="relative rounded-3xl bg-gradient-to-br from-dark-800 to-dark-900 border border-dark-700/50 overflow-hidden mb-6">
                 {/* Background Glow */}
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-32 bg-primary-500/20 blur-3xl" />
 
                 {/* Content */}
                 <div className="relative p-6">
+
                     {/* Muscle Group Tag */}
                     <motion.div
                         initial={{ opacity: 0, y: -10 }}
@@ -83,9 +109,12 @@ const CurrentExerciseCard = ({
                     </AnimatePresence>
 
                     {/* Target Info */}
-                    <p className="text-dark-400 mb-4">
+                    <p className="text-dark-400 mb-6">
                         Target: {exercise.targetSets} sets × {exercise.targetReps} reps
                     </p>
+
+                    {/* Completed Sets List */}
+
 
                     {/* Set Progress */}
                     <div className="mb-5">
@@ -105,7 +134,7 @@ const CurrentExerciseCard = ({
 
                     {/* Weight & Reps Input */}
                     {!allSetsComplete ? (
-                        <div className="mb-5">
+                        <div className="mb-2">
                             <p className="text-sm text-dark-400 mb-3">Log Set {currentSet}</p>
                             <div className="grid grid-cols-2 gap-3 mb-4">
                                 {/* Weight Input */}
@@ -145,7 +174,7 @@ const CurrentExerciseCard = ({
                             </motion.button>
                         </div>
                     ) : (
-                        <div className="mb-5">
+                        <div className="mb-2">
                             <motion.div
                                 initial={{ opacity: 0, scale: 0.9 }}
                                 animate={{ opacity: 1, scale: 1 }}
@@ -165,22 +194,88 @@ const CurrentExerciseCard = ({
                             </motion.button>
                         </div>
                     )}
-
-                    {/* Last Logged Set */}
-                    {lastWeight !== undefined && lastWeight > 0 && (
-                        <motion.div
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="p-3 rounded-xl bg-dark-700/30 border border-dark-600/30"
-                        >
-                            <p className="text-xs text-dark-500 mb-0.5">Previous set:</p>
-                            <p className="text-lg font-semibold text-white">
-                                {lastWeight} lbs × {lastReps} reps
-                            </p>
-                        </motion.div>
+                    {/* Completed Sets List */}
+                    {completedSets.length > 0 && (
+                        <div className="mt-8 pt-6 border-t border-dark-700/50 space-y-2">
+                            <p className="text-xs text-dark-500 font-medium uppercase tracking-wider mb-2">Logged Sets</p>
+                            {completedSets.map((set, index) => (
+                                <motion.div
+                                    key={index}
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className={`p-3 rounded-xl border transition-colors ${editingIndex === index
+                                        ? 'bg-primary-500/10 border-primary-500/50'
+                                        : 'bg-dark-700/30 border-dark-700 hover:border-dark-600'
+                                        }`}
+                                >
+                                    {editingIndex === index ? (
+                                        <div className="flex items-center gap-2">
+                                            <div className="flex-1 grid grid-cols-2 gap-2">
+                                                <div className="relative">
+                                                    <input
+                                                        type="number"
+                                                        value={editWeight}
+                                                        onChange={(e) => setEditWeight(e.target.value)}
+                                                        className="w-full px-3 py-1.5 rounded-lg bg-dark-800 border border-dark-600 text-white text-center font-bold outline-none focus:border-primary-500"
+                                                        placeholder="lbs"
+                                                    />
+                                                    <span className="absolute right-2 top-1.5 text-xs text-dark-500">lbs</span>
+                                                </div>
+                                                <div className="relative">
+                                                    <input
+                                                        type="number"
+                                                        value={editReps}
+                                                        onChange={(e) => setEditReps(e.target.value)}
+                                                        className="w-full px-3 py-1.5 rounded-lg bg-dark-800 border border-dark-600 text-white text-center font-bold outline-none focus:border-primary-500"
+                                                        placeholder="reps"
+                                                    />
+                                                    <span className="absolute right-2 top-1.5 text-xs text-dark-500">reps</span>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => saveEdit(index)}
+                                                className="p-2 rounded-lg bg-primary-500 text-white"
+                                            >
+                                                <Save className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => setEditingIndex(null)}
+                                                className="p-2 rounded-lg bg-dark-600 text-dark-300"
+                                            >
+                                                <XIcon className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center justify-between group">
+                                            <div className="flex items-center gap-3">
+                                                <span className="w-6 h-6 rounded-full bg-primary-500/20 text-primary-400 flex items-center justify-center text-xs font-bold">
+                                                    {index + 1}
+                                                </span>
+                                                <span className="text-white font-medium">
+                                                    {set.weight} <span className="text-dark-400 text-sm">lbs</span>
+                                                </span>
+                                                <span className="text-dark-600">×</span>
+                                                <span className="text-white font-medium">
+                                                    {set.reps} <span className="text-dark-400 text-sm">reps</span>
+                                                </span>
+                                            </div>
+                                            <button
+                                                onClick={() => startEditing(index, set)}
+                                                className="p-2 rounded-lg text-dark-500 opacity-100 md:opacity-0 group-hover:opacity-100 hover:bg-dark-600 hover:text-white transition-all"
+                                            >
+                                                <Edit2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    )}
+                                </motion.div>
+                            ))}
+                        </div>
                     )}
                 </div>
             </div>
+
+            {/* Navigation Footer */}
+
         </motion.div>
     );
 };
