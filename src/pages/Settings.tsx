@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Mic, Zap, Key, Check, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Mic, Zap, Key, Check, AlertCircle, LogOut } from 'lucide-react';
 import { useSettings } from '../contexts/SettingsContext';
+import { useAuth } from '../contexts/AuthContext';
 
 const Settings = () => {
     const navigate = useNavigate();
@@ -14,6 +15,7 @@ const Settings = () => {
         voiceEnabled,
         setVoiceEnabled
     } = useSettings();
+    const { logout } = useAuth();
 
     const [tempApiKey, setTempApiKey] = useState(assemblyApiKey);
     const [saved, setSaved] = useState(false);
@@ -83,8 +85,8 @@ const Settings = () => {
                                 whileTap={{ scale: 0.99 }}
                                 onClick={() => setSpeechProvider('browser')}
                                 className={`w-full p-4 rounded-xl border-2 text-left transition-all ${speechProvider === 'browser'
-                                        ? 'border-primary-500 bg-primary-500/10'
-                                        : 'border-dark-700 hover:border-dark-600'
+                                    ? 'border-primary-500 bg-primary-500/10'
+                                    : 'border-dark-700 hover:border-dark-600'
                                     }`}
                             >
                                 <div className="flex items-start gap-3">
@@ -113,8 +115,8 @@ const Settings = () => {
                                 whileTap={{ scale: 0.99 }}
                                 onClick={() => setSpeechProvider('assemblyai')}
                                 className={`w-full p-4 rounded-xl border-2 text-left transition-all ${speechProvider === 'assemblyai'
-                                        ? 'border-primary-500 bg-primary-500/10'
-                                        : 'border-dark-700 hover:border-dark-600'
+                                    ? 'border-primary-500 bg-primary-500/10'
+                                    : 'border-dark-700 hover:border-dark-600'
                                     }`}
                             >
                                 <div className="flex items-start gap-3">
@@ -193,6 +195,27 @@ const Settings = () => {
                         </motion.div>
                     )}
                 </motion.section>
+
+                {/* Sign Out Button */}
+                <motion.button
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 }}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={async () => {
+                        try {
+                            await logout();
+                            navigate('/');
+                        } catch (error) {
+                            console.error('Failed to logout:', error);
+                        }
+                    }}
+                    className="w-full p-4 rounded-xl glass border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-500 flex items-center justify-center gap-2 transition-all"
+                >
+                    <LogOut className="w-5 h-5" />
+                    <span className="font-semibold">Sign Out</span>
+                </motion.button>
 
                 {/* Info */}
                 <motion.div
