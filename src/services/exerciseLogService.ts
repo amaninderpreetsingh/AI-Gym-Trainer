@@ -84,6 +84,49 @@ export const getExerciseLogs = async (
     });
 };
 
+// Get the last log for a specific exercise
+export const getLastExerciseLog = async (
+    userId: string,
+    exerciseName: string
+): Promise<ExerciseLog | null> => {
+    const logsRef = getExerciseLogsRef(userId);
+    // Fetch all logs for this exercise without sorting in Firestore to avoid index requirement
+    const q = query(
+        logsRef,
+        where('exerciseName', '==', exerciseName)
+    );
+
+    const snapshot = await getDocs(q);
+
+    if (snapshot.empty) return null;
+
+    // Sort in memory by date (ascending)
+    const docs = snapshot.docs.sort((a, b) => {
+        const dateA = a.data().date.toMillis();
+        const dateB = b.data().date.toMillis();
+        return dateA - dateB;
+    });
+
+    // Get the last document (most recent)
+    const doc = docs[docs.length - 1];
+    const data = doc.data();
+
+    return {
+        id: doc.id,
+        exerciseName: data.exerciseName,
+        muscleGroup: data.muscleGroup,
+        workoutLogId: data.workoutLogId,
+        routineName: data.routineName,
+        date: data.date.toDate(),
+        sets: data.sets.map((set: { weight: number; reps: number; timestamp: Timestamp }) => ({
+            weight: set.weight,
+            reps: set.reps,
+            timestamp: set.timestamp.toDate()
+        })),
+        maxWeight: data.maxWeight
+    };
+};
+
 // Get all exercise logs filtered by muscle group
 export const getExerciseLogsByMuscleGroup = async (
     userId: string,

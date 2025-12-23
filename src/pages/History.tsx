@@ -6,11 +6,8 @@ import {
     Dumbbell,
     Calendar,
     Clock,
-    TrendingUp,
     ChevronDown,
     ChevronUp,
-    Flame,
-    Weight,
     Trash2,
     Edit2,
     Save,
@@ -190,36 +187,6 @@ const History = () => {
                 </div>
             ) : (
                 <div className="max-w-2xl mx-auto">
-                    {/* Stats Cards */}
-                    {stats && stats.totalWorkouts > 0 && (
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8"
-                        >
-                            <div className="glass rounded-xl p-4 text-center">
-                                <Flame className="w-5 h-5 text-orange-400 mx-auto mb-2" />
-                                <p className="text-2xl font-bold">{stats.totalWorkouts}</p>
-                                <p className="text-xs text-dark-400">Workouts</p>
-                            </div>
-                            <div className="glass rounded-xl p-4 text-center">
-                                <TrendingUp className="w-5 h-5 text-green-400 mx-auto mb-2" />
-                                <p className="text-2xl font-bold">{stats.totalSets}</p>
-                                <p className="text-xs text-dark-400">Total Sets</p>
-                            </div>
-                            <div className="glass rounded-xl p-4 text-center">
-                                <Weight className="w-5 h-5 text-blue-400 mx-auto mb-2" />
-                                <p className="text-2xl font-bold">{(stats.totalWeight / 1000).toFixed(1)}k</p>
-                                <p className="text-xs text-dark-400">Lbs Lifted</p>
-                            </div>
-                            <div className="glass rounded-xl p-4 text-center">
-                                <Clock className="w-5 h-5 text-purple-400 mx-auto mb-2" />
-                                <p className="text-2xl font-bold">{stats.totalDuration}</p>
-                                <p className="text-xs text-dark-400">Minutes</p>
-                            </div>
-                        </motion.div>
-                    )}
-
                     {/* Workout Logs */}
                     <motion.section
                         initial={{ opacity: 0, y: 20 }}
@@ -297,24 +264,67 @@ const History = () => {
                                                             </button>
                                                         </div>
                                                     ) : (
-                                                        <div className="text-right">
-                                                            <p className="text-sm font-medium text-white">
-                                                                {getWorkoutVolume(log).toLocaleString()} lbs
-                                                            </p>
-                                                            <div className="flex items-center justify-end gap-1">
-                                                                <p className="text-xs text-dark-400">
-                                                                    {log.exercisesCompleted.reduce((acc, ex) => acc + ex.sets.length, 0)} sets
-                                                                </p>
-                                                                {expandedLogId === log.id ? (
-                                                                    <ChevronUp className="w-4 h-4 text-dark-400 ml-1" />
-                                                                ) : (
-                                                                    <ChevronDown className="w-4 h-4 text-dark-400 ml-1" />
-                                                                )}
-                                                            </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <button
+                                                                onClick={(e) => startEditing(log, e)}
+                                                                className="p-1.5 rounded-lg hover:bg-dark-700 text-dark-400 hover:text-primary-500 transition-colors"
+                                                                title="Edit Workout"
+                                                            >
+                                                                <Edit2 className="w-4 h-4" />
+                                                            </button>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setDeletingLogId(log.id);
+                                                                }}
+                                                                className="p-1.5 rounded-lg hover:bg-dark-700 text-dark-400 hover:text-red-500 transition-colors"
+                                                                title="Delete Workout"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                            <div className="w-px h-4 bg-dark-700 mx-1" />
+                                                            {expandedLogId === log.id ? (
+                                                                <ChevronUp className="w-4 h-4 text-dark-400" />
+                                                            ) : (
+                                                                <ChevronDown className="w-4 h-4 text-dark-400" />
+                                                            )}
                                                         </div>
                                                     )}
                                                 </div>
                                             </div>
+
+                                            {/* Delete Confirmation */}
+                                            <AnimatePresence>
+                                                {deletingLogId === log.id && (
+                                                    <motion.div
+                                                        initial={{ opacity: 0, height: 0 }}
+                                                        animate={{ opacity: 1, height: 'auto' }}
+                                                        exit={{ opacity: 0, height: 0 }}
+                                                        className="overflow-hidden bg-red-500/10 border-t border-red-500/20"
+                                                    >
+                                                        <div className="p-4">
+                                                            <div className="flex items-center gap-2 text-red-400 mb-3">
+                                                                <AlertTriangle className="w-5 h-5" />
+                                                                <span className="font-medium text-sm">Delete this workout?</span>
+                                                            </div>
+                                                            <div className="flex gap-3">
+                                                                <button
+                                                                    onClick={() => deleteLog(log.id)}
+                                                                    className="flex-1 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-medium transition-colors"
+                                                                >
+                                                                    Confirm Delete
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => setDeletingLogId(null)}
+                                                                    className="flex-1 py-2 bg-dark-700 hover:bg-dark-600 text-white rounded-lg text-xs font-medium transition-colors"
+                                                                >
+                                                                    Cancel
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </motion.div>
+                                                )}
+                                            </AnimatePresence>
 
                                             {/* Expanded Details */}
                                             <AnimatePresence>
@@ -362,53 +372,6 @@ const History = () => {
                                                         ) : (
                                                             // View Mode
                                                             <div className="p-4 space-y-3">
-                                                                <div className="flex justify-end gap-2 mb-2">
-                                                                    <button
-                                                                        onClick={(e) => startEditing(log, e)}
-                                                                        className="p-2 rounded-lg bg-dark-700 hover:bg-primary-500/20 hover:text-primary-500 text-dark-300 transition-colors"
-                                                                        title="Edit Workout"
-                                                                    >
-                                                                        <Edit2 className="w-4 h-4" />
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            setDeletingLogId(log.id);
-                                                                        }}
-                                                                        className="p-2 rounded-lg bg-dark-700 hover:bg-red-500/20 hover:text-red-500 text-dark-300 transition-colors"
-                                                                        title="Delete Workout"
-                                                                    >
-                                                                        <Trash2 className="w-4 h-4" />
-                                                                    </button>
-                                                                </div>
-
-                                                                {deletingLogId === log.id && (
-                                                                    <motion.div
-                                                                        initial={{ opacity: 0, height: 0 }}
-                                                                        animate={{ opacity: 1, height: 'auto' }}
-                                                                        className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 mb-3"
-                                                                    >
-                                                                        <div className="flex items-center gap-2 text-red-400 mb-3">
-                                                                            <AlertTriangle className="w-5 h-5" />
-                                                                            <span className="font-medium text-sm">Delete this workout?</span>
-                                                                        </div>
-                                                                        <div className="flex gap-3">
-                                                                            <button
-                                                                                onClick={() => deleteLog(log.id)}
-                                                                                className="flex-1 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-medium transition-colors"
-                                                                            >
-                                                                                Confirm Delete
-                                                                            </button>
-                                                                            <button
-                                                                                onClick={() => setDeletingLogId(null)}
-                                                                                className="flex-1 py-2 bg-dark-700 hover:bg-dark-600 text-white rounded-lg text-xs font-medium transition-colors"
-                                                                            >
-                                                                                Cancel
-                                                                            </button>
-                                                                        </div>
-                                                                    </motion.div>
-                                                                )}
-
                                                                 {log.exercisesCompleted.map((exercise, exIndex) => (
                                                                     <div key={exIndex} className="bg-dark-800/50 rounded-lg p-3">
                                                                         <h4 className="font-medium text-sm mb-2">{exercise.name}</h4>

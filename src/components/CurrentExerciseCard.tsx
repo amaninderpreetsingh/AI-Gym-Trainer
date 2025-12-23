@@ -26,6 +26,7 @@ const CurrentExerciseCard = ({
     totalSets,
     completedSets,
     lastWeight,
+    lastReps,
     onLogSet,
     onUpdateSet,
     onNextExercise,
@@ -37,6 +38,8 @@ const CurrentExerciseCard = ({
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
     const [editWeight, setEditWeight] = useState('');
     const [editReps, setEditReps] = useState('');
+
+
 
     // Image Modal and Cache State
     const [showImageModal, setShowImageModal] = useState(false);
@@ -66,7 +69,16 @@ const CurrentExerciseCard = ({
         };
 
         checkStoredImage();
+        checkStoredImage();
     }, [exercise.name]);
+
+    // Update weight/reps when historical data becomes available
+    useEffect(() => {
+        if (lastWeight && !weight) {
+            setWeight(lastWeight.toString());
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [lastWeight]);
 
     const allSetsComplete = currentSet > totalSets;
 
@@ -213,7 +225,12 @@ const CurrentExerciseCard = ({
                             <div className="grid grid-cols-2 gap-3 mb-4">
                                 {/* Weight Input */}
                                 <div>
-                                    <label className="block text-xs text-dark-500 mb-1.5">Weight (lbs)</label>
+                                    <label className="block text-xs text-dark-500 mb-1.5 flex justify-between">
+                                        Weight (lbs)
+                                        {lastWeight && (
+                                            <span className="text-primary-400">Last: {lastWeight}</span>
+                                        )}
+                                    </label>
                                     <input
                                         type="number"
                                         value={weight}
@@ -225,7 +242,12 @@ const CurrentExerciseCard = ({
 
                                 {/* Reps Input */}
                                 <div>
-                                    <label className="block text-xs text-dark-500 mb-1.5">Reps</label>
+                                    <label className="block text-xs text-dark-500 mb-1.5 flex justify-between">
+                                        Reps
+                                        {lastReps && (
+                                            <span className="text-primary-400">Last: {lastReps}</span>
+                                        )}
+                                    </label>
                                     <input
                                         type="number"
                                         value={reps}

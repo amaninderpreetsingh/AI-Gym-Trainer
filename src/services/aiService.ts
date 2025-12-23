@@ -68,7 +68,7 @@ export const generateExerciseImage = async (exerciseName: string, muscleGroup: s
 
         const promptText = `Generate a two-panel, black and white anatomical fitness illustration showing the execution of ${exerciseName}. The left panel displays the starting position, and the right panel shows the ending position. The illustration is an accurate line drawing with cross-hatching for shading. Highlight ${muscleGroup} muscle in red. Anatomically accurate and the background is pure white.`
 
-        console.log(`[AI Service] Generating image for ${exerciseName} using Nano Banana Pro...`);
+        console.log(`[AI Service] Generating image for ${exerciseName}...`);
 
         const response = await fetch(endpoint, {
             method: 'POST',

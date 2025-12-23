@@ -50,7 +50,6 @@ const ExerciseImageModal = ({ isOpen, onClose, exerciseName, imageUrl, isLoading
                                         <Loader2 className="w-12 h-12 text-primary-500 animate-spin" />
                                         <div>
                                             <p className="text-white font-medium text-lg">Generating Visualization...</p>
-                                            <p className="text-primary-400 text-sm">Using Nano Banana Pro</p>
                                         </div>
                                     </div>
                                 ) : error ? (

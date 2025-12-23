@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useSettings } from '../contexts/SettingsContext';
 import { getRoutine, getExerciseMuscleGroupMap } from '../services/routineService';
 import { saveWorkoutLog } from '../services/workoutLogService';
+import { getLastExerciseLog } from '../services/exerciseLogService';
 import { Routine, CompletedExercise, LoggedSet } from '../types';
 import CurrentExerciseCard from '../components/CurrentExerciseCard';
 import ListeningIndicator from '../components/ListeningIndicator';
@@ -31,6 +32,9 @@ const ActiveSession = () => {
     const [lastVoiceLog, setLastVoiceLog] = useState<string | null>(null);
     const sessionStartTimeRef = useRef<Date | null>(null);
 
+    // Historical stats state
+    const [historicalStats, setHistoricalStats] = useState<LoggedSet[] | null>(null);
+
     // Voice hooks
     const { announceExercise, announceSetLogged, announceNextExercise, announceWorkoutComplete } = useTextToSpeech();
 
@@ -50,6 +54,25 @@ const ActiveSession = () => {
 
     const currentExercise = routine?.exercises[currentExerciseIndex];
     const isLastExercise = currentExerciseIndex === (routine?.exercises.length || 0) - 1;
+
+    // Fetch historical stats when exercise changes
+    useEffect(() => {
+        const fetchHistory = async () => {
+            if (user && currentExercise?.name) {
+                try {
+                    const lastLog = await getLastExerciseLog(user.uid, currentExercise.name);
+                    if (lastLog && lastLog.sets.length > 0) {
+                        setHistoricalStats(lastLog.sets);
+                    } else {
+                        setHistoricalStats(null);
+                    }
+                } catch (err) {
+                    console.error("Error fetching exercise history:", err);
+                }
+            }
+        };
+        fetchHistory();
+    }, [currentExercise?.name, user]);
 
     // Debug: Log transcript changes
     useEffect(() => {
@@ -124,10 +147,7 @@ const ActiveSession = () => {
         return completedExercises.find(e => e.name === currentExercise?.name);
     };
 
-    const getLastLoggedSet = (): LoggedSet | undefined => {
-        const exerciseLog = getCurrentExerciseLog();
-        return exerciseLog?.sets[exerciseLog.sets.length - 1];
-    };
+
 
     const handleLogSet = (weight: number, reps: number) => {
         if (!currentExercise) return;
@@ -589,8 +609,8 @@ const ActiveSession = () => {
                             currentSet={currentSetIndex}
                             totalSets={currentExercise.targetSets}
                             completedSets={getCurrentExerciseLog()?.sets || []}
-                            lastWeight={getLastLoggedSet()?.weight}
-                            lastReps={getLastLoggedSet()?.reps}
+                            lastWeight={(historicalStats?.[currentSetIndex - 1] || historicalStats?.[historicalStats.length - 1])?.weight}
+                            lastReps={(historicalStats?.[currentSetIndex - 1] || historicalStats?.[historicalStats.length - 1])?.reps}
                             onLogSet={handleLogSet}
                             onUpdateSet={handleUpdateSet}
                             onNextExercise={handleNextExercise}
