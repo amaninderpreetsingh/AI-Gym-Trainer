@@ -7,6 +7,7 @@ import CreateRoutine from './pages/CreateRoutine';
 import ActiveSession from './pages/ActiveSession';
 import Settings from './pages/Settings';
 import History from './pages/History';
+import Progress from './pages/Progress';
 import { ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { Dumbbell } from 'lucide-react';
@@ -77,6 +78,14 @@ const AppRoutes = () => {
                 element={
                     <ProtectedRoute>
                         <History />
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/progress"
+                element={
+                    <ProtectedRoute>
+                        <Progress />
                     </ProtectedRoute>
                 }
             />

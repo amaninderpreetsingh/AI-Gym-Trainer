@@ -11,7 +11,8 @@ import {
     Trash2,
     Zap,
     Settings,
-    Clock
+    Clock,
+    TrendingUp
 } from 'lucide-react';
 import { getRoutines, deleteRoutine } from '../services/routineService';
 import { Routine } from '../types';
@@ -127,6 +128,16 @@ const Dashboard = () => {
                         title="Workout History"
                     >
                         <Clock className="w-4 h-4 text-dark-400" />
+                    </motion.button>
+
+                    <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => navigate('/progress')}
+                        className="p-2 rounded-lg glass hover:bg-dark-700 transition-colors"
+                        title="Progress"
+                    >
+                        <TrendingUp className="w-4 h-4 text-dark-400" />
                     </motion.button>
 
                     <motion.button
