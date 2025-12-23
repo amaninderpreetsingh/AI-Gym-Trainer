@@ -20,9 +20,8 @@ import {
     ResponsiveContainer
 } from 'recharts';
 import { useAuth } from '../contexts/AuthContext';
-import { getWorkoutLogs } from '../services/workoutLogService';
-import { getRoutines } from '../services/routineService';
-import { WorkoutLog, Routine } from '../types';
+import { getExerciseLogs, getExerciseNamesWithMuscleGroups } from '../services/exerciseLogService';
+import { ExerciseLog } from '../types';
 
 interface ExerciseDataPoint {
     index: number;
@@ -30,10 +29,6 @@ interface ExerciseDataPoint {
     fullDate: Date;
     weight: number;
     reps: number;
-}
-
-interface ExerciseProgress {
-    [exerciseName: string]: ExerciseDataPoint[];
 }
 
 // Custom tooltip component to show weight and reps
@@ -60,53 +55,63 @@ const Progress = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
 
-    const [logs, setLogs] = useState<WorkoutLog[]>([]);
-    const [routines, setRoutines] = useState<Routine[]>([]);
+    const [exerciseLogs, setExerciseLogs] = useState<ExerciseLog[]>([]);
+    const [availableExercises, setAvailableExercises] = useState<Array<{ name: string; muscleGroup: string }>>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [isLoadingLogs, setIsLoadingLogs] = useState(false);
+
     const [selectedExercise, setSelectedExercise] = useState<string>('');
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [selectedMuscleGroups, setSelectedMuscleGroups] = useState<string[]>([]);
 
+    // Fetch available exercises on mount
     useEffect(() => {
-        const fetchData = async () => {
+        const fetchExercises = async () => {
             if (!user) return;
 
             try {
-                const [logsData, routinesData] = await Promise.all([
-                    getWorkoutLogs(user.uid, 100),
-                    getRoutines(user.uid)
-                ]);
-                setLogs(logsData);
-                setRoutines(routinesData);
+                const exercises = await getExerciseNamesWithMuscleGroups(user.uid);
+                setAvailableExercises(exercises);
+
+                // Set default selected exercise if available
+                if (exercises.length > 0 && !selectedExercise) {
+                    setSelectedExercise(exercises[0].name);
+                }
             } catch (error) {
-                console.error('Error fetching data:', error);
+                console.error('Error fetching exercises:', error);
             } finally {
                 setIsLoading(false);
             }
         };
 
-        fetchData();
+        fetchExercises();
     }, [user]);
 
-    // Build exercise to muscle group mapping from routines
-    const exerciseMuscleMap = useMemo((): Record<string, string> => {
-        const mapping: Record<string, string> = {};
-        routines.forEach(routine => {
-            routine.exercises.forEach(exercise => {
-                if (!mapping[exercise.name]) {
-                    mapping[exercise.name] = exercise.muscleGroup;
-                }
-            });
-        });
-        return mapping;
-    }, [routines]);
+    // Fetch logs when selected exercise changes
+    useEffect(() => {
+        const fetchLogs = async () => {
+            if (!user || !selectedExercise) return;
+
+            setIsLoadingLogs(true);
+            try {
+                const logs = await getExerciseLogs(user.uid, selectedExercise);
+                setExerciseLogs(logs);
+            } catch (error) {
+                console.error('Error fetching exercise logs:', error);
+            } finally {
+                setIsLoadingLogs(false);
+            }
+        };
+
+        fetchLogs();
+    }, [user, selectedExercise]);
 
     // Get all unique muscle groups
     const allMuscleGroups = useMemo(() => {
         const groups = new Set<string>();
-        Object.values(exerciseMuscleMap).forEach(group => groups.add(group));
+        availableExercises.forEach(ex => groups.add(ex.muscleGroup));
         return Array.from(groups).sort();
-    }, [exerciseMuscleMap]);
+    }, [availableExercises]);
 
     // Toggle muscle group selection
     const toggleMuscleGroup = (group: string) => {
@@ -115,83 +120,64 @@ const Progress = () => {
                 ? prev.filter(g => g !== group)
                 : [...prev, group]
         );
-        // Reset selected exercise when filter changes
-        setSelectedExercise('');
+        // Reset selected exercise when filter changes to ensure consistent UI
+        // We'll let the effect below pick a valid one
     };
 
     // Clear all muscle group filters
     const clearMuscleFilters = () => {
         setSelectedMuscleGroups([]);
-        setSelectedExercise('');
     };
 
-    // Process logs to get exercise progress data
-    const exerciseProgress = useMemo((): ExerciseProgress => {
-        const progress: ExerciseProgress = {};
-        let globalIndex = 0;
+    // Filter available exercises based on selected muscle groups
+    const filteredExercises = useMemo(() => {
+        if (selectedMuscleGroups.length === 0) {
+            return availableExercises;
+        }
+        return availableExercises.filter(ex => selectedMuscleGroups.includes(ex.muscleGroup));
+    }, [availableExercises, selectedMuscleGroups]);
 
-        logs.forEach(log => {
-            log.exercisesCompleted.forEach(exercise => {
-                if (!progress[exercise.name]) {
-                    progress[exercise.name] = [];
-                }
+    // Ensure selected exercise is valid for current filter
+    useEffect(() => {
+        // If we have exercises but none selected, or current selection is invalid
+        if (filteredExercises.length > 0) {
+            const isCurrentValid = filteredExercises.some(ex => ex.name === selectedExercise);
+            if (!selectedExercise || !isCurrentValid) {
+                setSelectedExercise(filteredExercises[0].name);
+            }
+        } else if (filteredExercises.length === 0) {
+            setSelectedExercise('');
+        }
+    }, [filteredExercises, selectedExercise]);
 
-                // For each set, record the data point
-                exercise.sets.forEach(set => {
-                    progress[exercise.name].push({
-                        index: globalIndex++,
-                        date: new Intl.DateTimeFormat('en-US', {
-                            month: 'short',
-                            day: 'numeric'
-                        }).format(log.startTime),
-                        fullDate: log.startTime,
-                        weight: set.weight,
-                        reps: set.reps
-                    });
+    // Process logs to get chart data
+    const chartData = useMemo((): ExerciseDataPoint[] => {
+        const dataPoints: ExerciseDataPoint[] = [];
+        let index = 0;
+
+        exerciseLogs.forEach(log => {
+            // For each set, record the data point
+            log.sets.forEach(set => {
+                dataPoints.push({
+                    index: index++,
+                    date: new Intl.DateTimeFormat('en-US', {
+                        month: 'short',
+                        day: 'numeric'
+                    }).format(log.date),
+                    fullDate: log.date,
+                    weight: set.weight,
+                    reps: set.reps
                 });
             });
         });
 
-        // Sort each exercise's data by date and re-index
-        Object.keys(progress).forEach(exerciseName => {
-            progress[exerciseName].sort((a, b) => a.fullDate.getTime() - b.fullDate.getTime());
-            // Re-index after sorting
-            progress[exerciseName].forEach((point, i) => {
-                point.index = i;
-            });
-        });
-
-        return progress;
-    }, [logs]);
-
-    // Get list of unique exercise names (filtered by muscle group)
-    const exerciseNames = useMemo(() => {
-        let names = Object.keys(exerciseProgress).sort();
-
-        // Filter by selected muscle groups if any
-        if (selectedMuscleGroups.length > 0) {
-            names = names.filter(name => {
-                const muscleGroup = exerciseMuscleMap[name];
-                return muscleGroup && selectedMuscleGroups.includes(muscleGroup);
-            });
-        }
-
-        return names;
-    }, [exerciseProgress, selectedMuscleGroups, exerciseMuscleMap]);
-
-    // Set default selected exercise
-    useEffect(() => {
-        if (exerciseNames.length > 0 && !selectedExercise) {
-            setSelectedExercise(exerciseNames[0]);
-        }
-    }, [exerciseNames, selectedExercise]);
-
-    const currentExerciseData = selectedExercise ? exerciseProgress[selectedExercise] || [] : [];
+        return dataPoints;
+    }, [exerciseLogs]);
 
     // Calculate max weight for the selected exercise
-    const maxWeight = currentExerciseData.length > 0
-        ? Math.max(...currentExerciseData.map(d => d.weight))
-        : 0;
+    const maxWeight = exerciseLogs.length > 0 && exerciseLogs[0].maxWeight !== undefined
+        ? Math.max(...exerciseLogs.map(l => l.maxWeight))
+        : chartData.length > 0 ? Math.max(...chartData.map(d => d.weight)) : 0;
 
     return (
         <div className="min-h-screen p-4 md:p-6">
@@ -224,7 +210,7 @@ const Progress = () => {
                         <Dumbbell className="w-8 h-8 text-primary-500" />
                     </motion.div>
                 </div>
-            ) : exerciseNames.length === 0 ? (
+            ) : availableExercises.length === 0 ? (
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -289,7 +275,7 @@ const Progress = () => {
                             </div>
                             {selectedMuscleGroups.length > 0 && (
                                 <p className="text-xs text-dark-500 mt-2">
-                                    Showing {exerciseNames.length} exercise{exerciseNames.length !== 1 ? 's' : ''} matching {selectedMuscleGroups.length} muscle group{selectedMuscleGroups.length !== 1 ? 's' : ''}
+                                    Showing {availableExercises.filter(ex => selectedMuscleGroups.includes(ex.muscleGroup)).length} exercise{availableExercises.filter(ex => selectedMuscleGroups.includes(ex.muscleGroup)).length !== 1 ? 's' : ''} matching {selectedMuscleGroups.length} muscle group{selectedMuscleGroups.length !== 1 ? 's' : ''}
                                 </p>
                             )}
                         </motion.div>
@@ -306,35 +292,38 @@ const Progress = () => {
                             <button
                                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                                 className="w-full md:w-80 glass rounded-xl p-4 flex items-center justify-between hover:bg-dark-700/50 transition-colors"
+                                disabled={filteredExercises.length === 0}
                             >
                                 <div className="flex items-center gap-3">
                                     <div className="w-8 h-8 rounded-lg bg-primary-500/20 flex items-center justify-center">
                                         <Dumbbell className="w-4 h-4 text-primary-500" />
                                     </div>
-                                    <span className="font-medium">{selectedExercise}</span>
+                                    <span className="font-medium">
+                                        {selectedExercise || 'No exercises found'}
+                                    </span>
                                 </div>
                                 <ChevronDown className={`w-5 h-5 text-dark-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
                             </button>
 
-                            {isDropdownOpen && (
+                            {isDropdownOpen && filteredExercises.length > 0 && (
                                 <motion.div
                                     initial={{ opacity: 0, y: -10 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     className="absolute z-10 w-full md:w-80 mt-2 glass rounded-xl overflow-hidden shadow-xl border border-dark-600"
                                 >
                                     <div className="max-h-60 overflow-y-auto">
-                                        {exerciseNames.map(name => (
+                                        {filteredExercises.map(ex => (
                                             <button
-                                                key={name}
+                                                key={ex.name}
                                                 onClick={() => {
-                                                    setSelectedExercise(name);
+                                                    setSelectedExercise(ex.name);
                                                     setIsDropdownOpen(false);
                                                 }}
-                                                className={`w-full p-3 text-left hover:bg-dark-700/50 transition-colors flex items-center gap-3 ${name === selectedExercise ? 'bg-primary-500/10 text-primary-500' : ''
+                                                className={`w-full p-3 text-left hover:bg-dark-700/50 transition-colors flex items-center gap-3 ${ex.name === selectedExercise ? 'bg-primary-500/10 text-primary-500' : ''
                                                     }`}
                                             >
                                                 <Dumbbell className="w-4 h-4" />
-                                                {name}
+                                                {ex.name}
                                             </button>
                                         ))}
                                     </div>
@@ -344,7 +333,7 @@ const Progress = () => {
                     </motion.div>
 
                     {/* Stats Summary */}
-                    {currentExerciseData.length > 0 && (
+                    {chartData.length > 0 && (
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
@@ -356,13 +345,13 @@ const Progress = () => {
                                 <p className="text-xs text-dark-400">Max Weight (lbs)</p>
                             </div>
                             <div className="glass rounded-xl p-4 text-center">
-                                <p className="text-2xl font-bold">{currentExerciseData.length}</p>
+                                <p className="text-2xl font-bold">{chartData.length}</p>
                                 <p className="text-xs text-dark-400">Total Sets</p>
                             </div>
                             <div className="glass rounded-xl p-4 text-center hidden md:block">
                                 <p className="text-2xl font-bold text-green-400">
-                                    {currentExerciseData.length >= 2
-                                        ? `${currentExerciseData[currentExerciseData.length - 1].weight - currentExerciseData[0].weight >= 0 ? '+' : ''}${currentExerciseData[currentExerciseData.length - 1].weight - currentExerciseData[0].weight}`
+                                    {chartData.length >= 2
+                                        ? `${chartData[chartData.length - 1].weight - chartData[0].weight >= 0 ? '+' : ''}${chartData[chartData.length - 1].weight - chartData[0].weight}`
                                         : '—'}
                                 </p>
                                 <p className="text-xs text-dark-400">Weight Change (lbs)</p>
@@ -382,11 +371,20 @@ const Progress = () => {
                             Weight Over Time
                         </h3>
 
-                        {currentExerciseData.length > 0 ? (
+                        {isLoadingLogs ? (
+                            <div className="h-80 flex items-center justify-center">
+                                <motion.div
+                                    animate={{ rotate: 360 }}
+                                    transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                                >
+                                    <Dumbbell className="w-6 h-6 text-dark-500" />
+                                </motion.div>
+                            </div>
+                        ) : chartData.length > 0 ? (
                             <div className="h-80">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <LineChart
-                                        data={currentExerciseData}
+                                        data={chartData}
                                         margin={{ top: 10, right: 10, left: 0, bottom: 10 }}
                                     >
                                         <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
@@ -396,7 +394,7 @@ const Progress = () => {
                                             fontSize={12}
                                             tickLine={false}
                                             tickFormatter={(value) => {
-                                                const point = currentExerciseData[value];
+                                                const point = chartData[value];
                                                 return point ? point.date : '';
                                             }}
                                         />

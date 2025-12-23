@@ -54,3 +54,15 @@ export interface SessionState {
     isListening: boolean;
     startTime: Date;
 }
+
+// Denormalized exercise log for efficient per-exercise queries
+export interface ExerciseLog {
+    id: string;
+    exerciseName: string;
+    muscleGroup: string;
+    workoutLogId: string;
+    routineName: string;
+    date: Date;
+    sets: LoggedSet[];
+    maxWeight: number; // For quick sorting/filtering
+}

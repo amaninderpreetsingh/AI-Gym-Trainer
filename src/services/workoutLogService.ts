@@ -2,6 +2,9 @@ import {
     collection,
     addDoc,
     getDocs,
+    doc,
+    updateDoc,
+    deleteDoc,
     query,
     orderBy,
     Timestamp,
@@ -9,6 +12,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { WorkoutLog, CompletedExercise } from '../types';
+import { saveExerciseLogs, deleteExerciseLogsByWorkout, updateExerciseLogsForWorkout } from './exerciseLogService';
 
 // Get the workout logs collection reference for a user
 const getWorkoutLogsRef = (userId: string) =>
@@ -21,7 +25,8 @@ export const saveWorkoutLog = async (
     routineName: string,
     startTime: Date,
     endTime: Date,
-    exercisesCompleted: CompletedExercise[]
+    exercisesCompleted: CompletedExercise[],
+    exerciseMuscleGroupMap: Record<string, string> = {}
 ): Promise<string> => {
     const logsRef = getWorkoutLogsRef(userId);
 
@@ -42,7 +47,62 @@ export const saveWorkoutLog = async (
         duration: Math.floor((endTime.getTime() - startTime.getTime()) / 1000) // seconds
     });
 
+    // Also save denormalized exercise logs for efficient querying
+    await saveExerciseLogs(
+        userId,
+        docRef.id,
+        routineName,
+        startTime,
+        exercisesCompleted,
+        exerciseMuscleGroupMap
+    );
+
     return docRef.id;
+};
+
+// Update a workout log
+// Update a workout log
+export const updateWorkoutLog = async (
+    userId: string,
+    workoutLogId: string,
+    exercisesCompleted: CompletedExercise[],
+    routineName: string,
+    startTime: Date
+): Promise<void> => {
+    const logRef = doc(db, 'users', userId, 'workout_logs', workoutLogId);
+
+    await updateDoc(logRef, {
+        exercisesCompleted: exercisesCompleted.map(ex => ({
+            name: ex.name,
+            sets: ex.sets.map(set => ({
+                weight: set.weight,
+                reps: set.reps,
+                timestamp: Timestamp.fromDate(set.timestamp)
+            }))
+        }))
+    });
+
+    // Sync exercise logs
+    await updateExerciseLogsForWorkout(
+        userId,
+        workoutLogId,
+        routineName,
+        startTime,
+        exercisesCompleted
+    );
+};
+
+// Delete a workout log and its associated exercise logs
+export const deleteWorkoutLog = async (
+    userId: string,
+    workoutLogId: string
+): Promise<void> => {
+    // Delete associated exercise logs first
+    await deleteExerciseLogsByWorkout(userId, workoutLogId);
+
+    // Then delete the workout log
+    const logRef = doc(db, 'users', userId, 'workout_logs', workoutLogId);
+    await deleteDoc(logRef);
 };
 
 // Get all workout logs for a user

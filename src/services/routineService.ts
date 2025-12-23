@@ -4,6 +4,7 @@ import {
     getDocs,
     doc,
     deleteDoc,
+    updateDoc,
     getDoc,
     query,
     orderBy,
@@ -31,6 +32,22 @@ export const createRoutine = async (
     });
 
     return docRef.id;
+};
+
+// Update an existing routine
+export const updateRoutine = async (
+    userId: string,
+    routineId: string,
+    name: string,
+    exercises: Exercise[]
+): Promise<void> => {
+    const routineRef = doc(db, 'users', userId, 'routines', routineId);
+
+    await updateDoc(routineRef, {
+        name,
+        exercises,
+        updatedAt: Timestamp.now()
+    });
 };
 
 // Get all routines for a user
@@ -75,4 +92,13 @@ export const deleteRoutine = async (
 ): Promise<void> => {
     const routineRef = doc(db, 'users', userId, 'routines', routineId);
     await deleteDoc(routineRef);
+};
+
+// Get muscle group map from a routine (helper for workout logging)
+export const getExerciseMuscleGroupMap = (routine: Routine): Record<string, string> => {
+    const map: Record<string, string> = {};
+    routine.exercises.forEach(exercise => {
+        map[exercise.name] = exercise.muscleGroup;
+    });
+    return map;
 };

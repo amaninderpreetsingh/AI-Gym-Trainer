@@ -10,11 +10,16 @@ import {
     ChevronDown,
     ChevronUp,
     Flame,
-    Weight
+    Weight,
+    Trash2,
+    Edit2,
+    Save,
+    X,
+    AlertTriangle
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { getWorkoutLogs, getWorkoutStats } from '../services/workoutLogService';
-import { WorkoutLog } from '../types';
+import { getWorkoutLogs, getWorkoutStats, updateWorkoutLog, deleteWorkoutLog } from '../services/workoutLogService';
+import { WorkoutLog, CompletedExercise } from '../types';
 
 const History = () => {
     const { user } = useAuth();
@@ -30,24 +35,32 @@ const History = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
 
+    // Edit state
+    const [editingLogId, setEditingLogId] = useState<string | null>(null);
+    const [editingData, setEditingData] = useState<CompletedExercise[] | null>(null);
+    const [isSaving, setIsSaving] = useState(false);
+
+    // Delete state
+    const [deletingLogId, setDeletingLogId] = useState<string | null>(null);
+
+    const fetchData = async () => {
+        if (!user) return;
+
+        try {
+            const [logsData, statsData] = await Promise.all([
+                getWorkoutLogs(user.uid),
+                getWorkoutStats(user.uid)
+            ]);
+            setLogs(logsData);
+            setStats(statsData);
+        } catch (error) {
+            console.error('Error fetching history:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const fetchData = async () => {
-            if (!user) return;
-
-            try {
-                const [logsData, statsData] = await Promise.all([
-                    getWorkoutLogs(user.uid),
-                    getWorkoutStats(user.uid)
-                ]);
-                setLogs(logsData);
-                setStats(statsData);
-            } catch (error) {
-                console.error('Error fetching history:', error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
         fetchData();
     }, [user]);
 
@@ -74,7 +87,77 @@ const History = () => {
     };
 
     const toggleExpand = (logId: string) => {
+        if (editingLogId) return; // Prevent collapsing while editing
         setExpandedLogId(expandedLogId === logId ? null : logId);
+    };
+
+    const startEditing = (log: WorkoutLog, e: React.MouseEvent) => {
+        e.stopPropagation();
+        setEditingLogId(log.id);
+        setExpandedLogId(log.id); // Ensure expanded
+        // Deep copy while preserving Date objects
+        setEditingData(log.exercisesCompleted.map(ex => ({
+            ...ex,
+            sets: ex.sets.map(set => ({ ...set }))
+        })));
+    };
+
+    const cancelEditing = (e?: React.MouseEvent) => {
+        e?.stopPropagation();
+        setEditingLogId(null);
+        setEditingData(null);
+    };
+
+    const saveEditing = async (log: WorkoutLog, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!user || !editingData) return;
+
+        setIsSaving(true);
+        try {
+            await updateWorkoutLog(
+                user.uid,
+                log.id,
+                editingData,
+                log.routineName,
+                log.startTime
+            );
+            await fetchData(); // Reload data
+            setEditingLogId(null);
+            setEditingData(null);
+        } catch (error) {
+            console.error('Error updating log:', error);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const deleteLog = async (logId: string) => {
+        if (!user) return;
+        try {
+            await deleteWorkoutLog(user.uid, logId);
+            setDeletingLogId(null);
+            // Optimistic update or reload
+            setLogs(logs.filter(l => l.id !== logId));
+            // Reload stats properly
+            const statsData = await getWorkoutStats(user.uid);
+            setStats(statsData);
+        } catch (error) {
+            console.error('Error deleting log:', error);
+        }
+    };
+
+    const updateSetData = (exerciseIndex: number, setIndex: number, field: 'weight' | 'reps', value: string) => {
+        if (!editingData) return;
+
+        const newData = [...editingData];
+        const numValue = parseInt(value) || 0;
+
+        newData[exerciseIndex].sets[setIndex] = {
+            ...newData[exerciseIndex].sets[setIndex],
+            [field]: numValue
+        };
+
+        setEditingData(newData);
     };
 
     return (
@@ -173,9 +256,9 @@ const History = () => {
                                             className="glass rounded-xl overflow-hidden"
                                         >
                                             {/* Log Header */}
-                                            <button
+                                            <div
                                                 onClick={() => toggleExpand(log.id)}
-                                                className="w-full p-4 flex items-center justify-between hover:bg-dark-800/50 transition-colors"
+                                                className={`w-full p-4 flex items-center justify-between hover:bg-dark-800/50 transition-colors cursor-pointer ${editingLogId === log.id ? 'bg-dark-800/50' : ''}`}
                                             >
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-10 h-10 rounded-xl bg-primary-500/20 flex items-center justify-center">
@@ -196,21 +279,42 @@ const History = () => {
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-3">
-                                                    <div className="text-right">
-                                                        <p className="text-sm font-medium text-white">
-                                                            {getWorkoutVolume(log).toLocaleString()} lbs
-                                                        </p>
-                                                        <p className="text-xs text-dark-400">
-                                                            {log.exercisesCompleted.reduce((acc, ex) => acc + ex.sets.length, 0)} sets
-                                                        </p>
-                                                    </div>
-                                                    {expandedLogId === log.id ? (
-                                                        <ChevronUp className="w-5 h-5 text-dark-400" />
+                                                    {editingLogId === log.id ? (
+                                                        <div className="flex gap-2">
+                                                            <button
+                                                                onClick={(e) => saveEditing(log, e)}
+                                                                disabled={isSaving}
+                                                                className="p-2 rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-colors"
+                                                            >
+                                                                <Save className="w-4 h-4" />
+                                                            </button>
+                                                            <button
+                                                                onClick={cancelEditing}
+                                                                disabled={isSaving}
+                                                                className="p-2 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors"
+                                                            >
+                                                                <X className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
                                                     ) : (
-                                                        <ChevronDown className="w-5 h-5 text-dark-400" />
+                                                        <div className="text-right">
+                                                            <p className="text-sm font-medium text-white">
+                                                                {getWorkoutVolume(log).toLocaleString()} lbs
+                                                            </p>
+                                                            <div className="flex items-center justify-end gap-1">
+                                                                <p className="text-xs text-dark-400">
+                                                                    {log.exercisesCompleted.reduce((acc, ex) => acc + ex.sets.length, 0)} sets
+                                                                </p>
+                                                                {expandedLogId === log.id ? (
+                                                                    <ChevronUp className="w-4 h-4 text-dark-400 ml-1" />
+                                                                ) : (
+                                                                    <ChevronDown className="w-4 h-4 text-dark-400 ml-1" />
+                                                                )}
+                                                            </div>
+                                                        </div>
                                                     )}
                                                 </div>
-                                            </button>
+                                            </div>
 
                                             {/* Expanded Details */}
                                             <AnimatePresence>
@@ -222,25 +326,108 @@ const History = () => {
                                                         transition={{ duration: 0.2 }}
                                                         className="border-t border-dark-700"
                                                     >
-                                                        <div className="p-4 space-y-3">
-                                                            {log.exercisesCompleted.map((exercise, exIndex) => (
-                                                                <div key={exIndex} className="bg-dark-800/50 rounded-lg p-3">
-                                                                    <h4 className="font-medium text-sm mb-2">{exercise.name}</h4>
-                                                                    <div className="grid grid-cols-3 gap-2 text-xs">
-                                                                        <span className="text-dark-500">Set</span>
-                                                                        <span className="text-dark-500">Weight</span>
-                                                                        <span className="text-dark-500">Reps</span>
-                                                                        {exercise.sets.map((set, setIndex) => (
-                                                                            <>
-                                                                                <span key={`set-${setIndex}`} className="text-dark-300">{setIndex + 1}</span>
-                                                                                <span key={`weight-${setIndex}`} className="text-white font-medium">{set.weight} lbs</span>
-                                                                                <span key={`reps-${setIndex}`} className="text-white font-medium">{set.reps}</span>
-                                                                            </>
-                                                                        ))}
+                                                        {editingLogId === log.id ? (
+                                                            // Edit Mode
+                                                            <div className="p-4 space-y-3">
+                                                                {editingData?.map((exercise, exIndex) => (
+                                                                    <div key={exIndex} className="bg-dark-800/50 rounded-lg p-3">
+                                                                        <h4 className="font-medium text-sm mb-2 text-white">{exercise.name}</h4>
+                                                                        <div className="grid grid-cols-[30px_1fr_1fr] gap-3 text-xs mb-2 px-1">
+                                                                            <span className="text-dark-500">#</span>
+                                                                            <span className="text-dark-500">Weight (lbs)</span>
+                                                                            <span className="text-dark-500">Reps</span>
+                                                                        </div>
+                                                                        <div className="space-y-2">
+                                                                            {exercise.sets.map((set, setIndex) => (
+                                                                                <div key={setIndex} className="grid grid-cols-[30px_1fr_1fr] gap-3 items-center">
+                                                                                    <span className="text-dark-300 text-xs">{setIndex + 1}</span>
+                                                                                    <input
+                                                                                        type="number"
+                                                                                        value={set.weight}
+                                                                                        onChange={(e) => updateSetData(exIndex, setIndex, 'weight', e.target.value)}
+                                                                                        className="bg-dark-900 border border-dark-600 rounded px-2 py-1 text-white text-sm focus:border-primary-500 focus:outline-none"
+                                                                                    />
+                                                                                    <input
+                                                                                        type="number"
+                                                                                        value={set.reps}
+                                                                                        onChange={(e) => updateSetData(exIndex, setIndex, 'reps', e.target.value)}
+                                                                                        className="bg-dark-900 border border-dark-600 rounded px-2 py-1 text-white text-sm focus:border-primary-500 focus:outline-none"
+                                                                                    />
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
                                                                     </div>
+                                                                ))}
+                                                            </div>
+                                                        ) : (
+                                                            // View Mode
+                                                            <div className="p-4 space-y-3">
+                                                                <div className="flex justify-end gap-2 mb-2">
+                                                                    <button
+                                                                        onClick={(e) => startEditing(log, e)}
+                                                                        className="p-2 rounded-lg bg-dark-700 hover:bg-primary-500/20 hover:text-primary-500 text-dark-300 transition-colors"
+                                                                        title="Edit Workout"
+                                                                    >
+                                                                        <Edit2 className="w-4 h-4" />
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            setDeletingLogId(log.id);
+                                                                        }}
+                                                                        className="p-2 rounded-lg bg-dark-700 hover:bg-red-500/20 hover:text-red-500 text-dark-300 transition-colors"
+                                                                        title="Delete Workout"
+                                                                    >
+                                                                        <Trash2 className="w-4 h-4" />
+                                                                    </button>
                                                                 </div>
-                                                            ))}
-                                                        </div>
+
+                                                                {deletingLogId === log.id && (
+                                                                    <motion.div
+                                                                        initial={{ opacity: 0, height: 0 }}
+                                                                        animate={{ opacity: 1, height: 'auto' }}
+                                                                        className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 mb-3"
+                                                                    >
+                                                                        <div className="flex items-center gap-2 text-red-400 mb-3">
+                                                                            <AlertTriangle className="w-5 h-5" />
+                                                                            <span className="font-medium text-sm">Delete this workout?</span>
+                                                                        </div>
+                                                                        <div className="flex gap-3">
+                                                                            <button
+                                                                                onClick={() => deleteLog(log.id)}
+                                                                                className="flex-1 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-medium transition-colors"
+                                                                            >
+                                                                                Confirm Delete
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => setDeletingLogId(null)}
+                                                                                className="flex-1 py-2 bg-dark-700 hover:bg-dark-600 text-white rounded-lg text-xs font-medium transition-colors"
+                                                                            >
+                                                                                Cancel
+                                                                            </button>
+                                                                        </div>
+                                                                    </motion.div>
+                                                                )}
+
+                                                                {log.exercisesCompleted.map((exercise, exIndex) => (
+                                                                    <div key={exIndex} className="bg-dark-800/50 rounded-lg p-3">
+                                                                        <h4 className="font-medium text-sm mb-2">{exercise.name}</h4>
+                                                                        <div className="grid grid-cols-3 gap-2 text-xs">
+                                                                            <span className="text-dark-500">Set</span>
+                                                                            <span className="text-dark-500">Weight</span>
+                                                                            <span className="text-dark-500">Reps</span>
+                                                                            {exercise.sets.map((set, setIndex) => (
+                                                                                <>
+                                                                                    <span key={`set-${setIndex}`} className="text-dark-300">{setIndex + 1}</span>
+                                                                                    <span key={`weight-${setIndex}`} className="text-white font-medium">{set.weight} lbs</span>
+                                                                                    <span key={`reps-${setIndex}`} className="text-white font-medium">{set.reps}</span>
+                                                                                </>
+                                                                            ))}
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
                                                     </motion.div>
                                                 )}
                                             </AnimatePresence>

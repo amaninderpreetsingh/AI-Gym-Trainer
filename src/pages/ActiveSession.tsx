@@ -4,7 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, X, Timer, Dumbbell, Volume2, VolumeX, Settings, Mic } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSettings } from '../contexts/SettingsContext';
-import { getRoutine } from '../services/routineService';
+import { getRoutine, getExerciseMuscleGroupMap } from '../services/routineService';
 import { saveWorkoutLog } from '../services/workoutLogService';
 import { Routine, CompletedExercise, LoggedSet } from '../types';
 import CurrentExerciseCard from '../components/CurrentExerciseCard';
@@ -207,13 +207,17 @@ const ActiveSession = () => {
         if (saveData && user && routine && routineId && completedExercises.length > 0 && sessionStartTimeRef.current) {
             setIsSaving(true);
             try {
+                // Get muscle group mapping from routine for denormalized storage
+                const muscleGroupMap = getExerciseMuscleGroupMap(routine);
+
                 await saveWorkoutLog(
                     user.uid,
                     routineId,
                     routine.name,
                     sessionStartTimeRef.current,
                     new Date(),
-                    completedExercises
+                    completedExercises,
+                    muscleGroupMap
                 );
             } catch (error) {
                 console.error('Error saving workout:', error);
