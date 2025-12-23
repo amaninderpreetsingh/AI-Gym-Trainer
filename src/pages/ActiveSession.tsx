@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, X, Timer, Dumbbell, Volume2, VolumeX, Settings, Mic } from 'lucide-react';
@@ -163,8 +163,8 @@ const ActiveSession = () => {
         }
     };
 
-    // Handle voice commands - defined after handleLogSet and handleNextExercise
-    const handleVoiceCommand = useCallback((command: { type: string; weight?: number; reps?: number; rawText: string }) => {
+    // Handle voice commands - use regular function to avoid stale closure
+    const handleVoiceCommand = (command: { type: string; weight?: number; reps?: number; rawText: string }) => {
         console.log('🗣️ Voice command received:', command);
         if (!currentExercise || !voiceEnabled) {
             console.log('⚠️ Cannot process - no exercise or voice disabled');
@@ -182,7 +182,7 @@ const ActiveSession = () => {
         }
 
         resetTranscript();
-    }, [currentExercise, voiceEnabled, announceSetLogged, resetTranscript]);
+    };
 
     // Voice commands hook
     useVoiceCommands(transcript, {
