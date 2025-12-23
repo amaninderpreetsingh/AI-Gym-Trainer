@@ -15,7 +15,7 @@ import {
     AlertTriangle
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { getWorkoutLogs, getWorkoutStats, updateWorkoutLog, deleteWorkoutLog } from '../services/workoutLogService';
+import { getWorkoutLogs, updateWorkoutLog, deleteWorkoutLog } from '../services/workoutLogService';
 import { WorkoutLog, CompletedExercise } from '../types';
 
 const History = () => {
@@ -23,12 +23,7 @@ const History = () => {
     const navigate = useNavigate();
 
     const [logs, setLogs] = useState<WorkoutLog[]>([]);
-    const [stats, setStats] = useState<{
-        totalWorkouts: number;
-        totalSets: number;
-        totalWeight: number;
-        totalDuration: number;
-    } | null>(null);
+
     const [isLoading, setIsLoading] = useState(true);
     const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
 
@@ -44,12 +39,8 @@ const History = () => {
         if (!user) return;
 
         try {
-            const [logsData, statsData] = await Promise.all([
-                getWorkoutLogs(user.uid),
-                getWorkoutStats(user.uid)
-            ]);
+            const logsData = await getWorkoutLogs(user.uid);
             setLogs(logsData);
-            setStats(statsData);
         } catch (error) {
             console.error('Error fetching history:', error);
         } finally {
@@ -77,11 +68,7 @@ const History = () => {
         return `${Math.floor(diff / 60)}h ${diff % 60}m`;
     };
 
-    const getWorkoutVolume = (log: WorkoutLog) => {
-        return log.exercisesCompleted.reduce((acc, ex) =>
-            acc + ex.sets.reduce((setAcc, set) => setAcc + (set.weight * set.reps), 0), 0
-        );
-    };
+
 
     const toggleExpand = (logId: string) => {
         if (editingLogId) return; // Prevent collapsing while editing
@@ -135,9 +122,7 @@ const History = () => {
             setDeletingLogId(null);
             // Optimistic update or reload
             setLogs(logs.filter(l => l.id !== logId));
-            // Reload stats properly
-            const statsData = await getWorkoutStats(user.uid);
-            setStats(statsData);
+
         } catch (error) {
             console.error('Error deleting log:', error);
         }
