@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import CreateRoutine from './pages/CreateRoutine';
 import { ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { Dumbbell } from 'lucide-react';
@@ -40,6 +41,14 @@ const AppRoutes = () => {
                 element={
                     <ProtectedRoute>
                         <Dashboard />
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/create-routine"
+                element={
+                    <ProtectedRoute>
+                        <CreateRoutine />
                     </ProtectedRoute>
                 }
             />
