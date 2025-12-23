@@ -54,3 +54,74 @@ export const generateWorkoutPlan = async (prompt: string): Promise<Exercise[]> =
         throw new Error('Failed to generate workout plan. Please try again.');
     }
 };
+
+export const generateExerciseImage = async (exerciseName: string, muscleGroup: string): Promise<string> => {
+    if (!genAI) {
+        throw new Error('Gemini API Key is missing.');
+    }
+
+    try {
+
+
+        // Real implementation using the Nano Banana Pro model as requested
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/nano-banana-pro-preview:generateContent?key=${API_KEY}`;
+
+        const promptText = `Generate a black and white educational fitness illustration of ${exerciseName}. Split view showing starting and ending positions. Highlight ${muscleGroup} muscle in red. Anatomically accurate, educational, white background.`;
+
+        console.log(`[AI Service] Generating image for ${exerciseName} using Nano Banana Pro...`);
+
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                contents: [{
+                    parts: [{ text: promptText }]
+                }]
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            console.error('[AI Service] Image generation failed:', response.status, errorData);
+            if (response.status === 404 || response.status === 403) {
+                throw new Error('Image generation not available with current API Key permissions or model not found.');
+            }
+            throw new Error(`Failed to generate image: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        // Handle Gemini GenerateContent response which could contain inlineData for images
+        // Structure: candidates[0].content.parts[].inlineData
+        const candidate = data.candidates?.[0];
+        const parts = candidate?.content?.parts || [];
+
+        // Find the image part
+        const imagePart = parts.find((p: any) => p.inlineData && p.inlineData.mimeType.startsWith('image/'));
+
+        if (imagePart) {
+            return `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
+        }
+
+        // Sometimes it might return a text description if it refused to generate input-bound image?
+        // Or if the model is text-only but named confusingly. 
+        // But assuming "Image Preview" model generates images.
+
+        console.warn('[AI Service] No image found in response:', data);
+
+        // Fallback: Check if there is text and log it
+        const textPart = parts.find((p: any) => p.text);
+        if (textPart) {
+            console.log('[AI Service] Model returned text instead of image:', textPart.text);
+            throw new Error('Model returned text description instead of image. Prompt might need adjustment.');
+        }
+
+        throw new Error('Invalid response from Image Generation API');
+
+    } catch (error) {
+        console.error('Error generating exercise image:', error);
+        throw error;
+    }
+};

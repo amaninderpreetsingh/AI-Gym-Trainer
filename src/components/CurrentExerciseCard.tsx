@@ -1,7 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, Check, Edit2, Save, X as XIcon } from 'lucide-react';
+import { ChevronRight, Check, Edit2, Save, X as XIcon, HelpCircle } from 'lucide-react';
 import { Exercise, LoggedSet } from '../types';
+import { useAuth } from '../contexts/AuthContext';
+import { generateExerciseImage } from '../services/aiService';
+import { getStoredExerciseImage, saveExerciseImage } from '../services/imageService';
+import ExerciseImageModal from './ExerciseImageModal';
 
 interface CurrentExerciseCardProps {
     exercise: Exercise;
@@ -13,7 +17,6 @@ interface CurrentExerciseCardProps {
     onLogSet: (weight: number, reps: number) => void;
     onUpdateSet: (index: number, weight: number, reps: number) => void;
     onNextExercise?: () => void;
-
     isLastExercise: boolean;
 }
 
@@ -26,15 +29,43 @@ const CurrentExerciseCard = ({
     onLogSet,
     onUpdateSet,
     onNextExercise,
-
     isLastExercise
 }: CurrentExerciseCardProps) => {
-    // ... (existing state) ...
+    const { user } = useAuth();
     const [weight, setWeight] = useState<string>(lastWeight?.toString() || '');
     const [reps, setReps] = useState<string>(exercise.targetReps.toString());
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
     const [editWeight, setEditWeight] = useState('');
     const [editReps, setEditReps] = useState('');
+
+    // Image Modal and Cache State
+    const [showImageModal, setShowImageModal] = useState(false);
+    const [imageUrl, setImageUrl] = useState<string | null>(null);
+    const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+    const [imageError, setImageError] = useState<string | null>(null);
+    const [hasStoredImage, setHasStoredImage] = useState(false);
+
+    // Reset state and check for stored image when exercise changes
+    useEffect(() => {
+        setImageUrl(null);
+        setHasStoredImage(false);
+        setImageError(null);
+
+        const checkStoredImage = async () => {
+            if (user?.uid && exercise.name) {
+                try {
+                    const stored = await getStoredExerciseImage(user.uid, exercise.name);
+                    if (stored) {
+                        setHasStoredImage(true);
+                    }
+                } catch (err) {
+                    console.error("Error checking stored image:", err);
+                }
+            }
+        };
+
+        checkStoredImage();
+    }, [exercise.name, user?.uid]);
 
     const allSetsComplete = currentSet > totalSets;
 
@@ -49,8 +80,6 @@ const CurrentExerciseCard = ({
             setReps(exercise.targetReps.toString());
         }
     };
-
-    // ... (existing helper functions startEditing, saveEdit, handleFinish) ...
 
     const startEditing = (index: number, set: LoggedSet) => {
         setEditingIndex(index);
@@ -68,6 +97,41 @@ const CurrentExerciseCard = ({
     const handleFinish = () => {
         if (onNextExercise) {
             onNextExercise();
+        }
+    };
+
+    const handleShowImage = async () => {
+        setShowImageModal(true);
+        if (imageUrl) return; // Already loaded via cache or previous gen
+
+        if (!user) return;
+
+        setIsGeneratingImage(true);
+        setImageError(null);
+
+        try {
+            // Check cache first
+            const storedImage = await getStoredExerciseImage(user.uid, exercise.name);
+
+            if (storedImage) {
+                setImageUrl(storedImage.imageUrl);
+                setHasStoredImage(true);
+            } else {
+                // Generate new image
+                const generatedUrl = await generateExerciseImage(exercise.name, exercise.muscleGroup);
+                setImageUrl(generatedUrl);
+
+                // Cache it
+                // Note: generatedUrl here is a string (URL or Base64). 
+                // We mock it for now as "Nano Banana Pro" simulation.
+                await saveExerciseImage(user.uid, exercise.name, generatedUrl, `Visual guide for ${exercise.name}`);
+                setHasStoredImage(true);
+            }
+        } catch (err: any) {
+            console.error(err);
+            setImageError(err.message || "Failed to load visualization");
+        } finally {
+            setIsGeneratingImage(false);
         }
     };
 
@@ -95,25 +159,36 @@ const CurrentExerciseCard = ({
                         {exercise.muscleGroup}
                     </motion.div>
 
-                    {/* Exercise Name */}
-                    <AnimatePresence mode="wait">
-                        <motion.h2
-                            key={exercise.name}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -20 }}
-                            className="text-3xl md:text-4xl font-bold text-white mb-1"
+                    {/* Exercise Name with Help Button */}
+                    <div className="flex items-center gap-3 mb-1">
+                        <AnimatePresence mode="wait">
+                            <motion.h2
+                                key={exercise.name}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -20 }}
+                                className="text-3xl md:text-4xl font-bold text-white"
+                            >
+                                {exercise.name}
+                            </motion.h2>
+                        </AnimatePresence>
+
+                        <button
+                            onClick={handleShowImage}
+                            className={`p-1.5 rounded-full transition-colors ${hasStoredImage
+                                    ? 'bg-green-500/10 text-green-400 hover:bg-green-500/20 hover:text-green-300'
+                                    : 'bg-dark-700 text-dark-400 hover:bg-primary-500/20 hover:text-primary-400'
+                                }`}
+                            title={hasStoredImage ? "View Visual Guide" : "Generate Visual Guide"}
                         >
-                            {exercise.name}
-                        </motion.h2>
-                    </AnimatePresence>
+                            <HelpCircle className="w-5 h-5" />
+                        </button>
+                    </div>
 
                     {/* Target Info */}
                     <p className="text-dark-400 mb-6">
                         Target: {exercise.targetSets} sets × {exercise.targetReps} reps
                     </p>
-
-                    {/* Completed Sets List */}
 
 
                     {/* Set Progress */}
@@ -274,8 +349,14 @@ const CurrentExerciseCard = ({
                 </div>
             </div>
 
-            {/* Navigation Footer */}
-
+            <ExerciseImageModal
+                isOpen={showImageModal}
+                onClose={() => setShowImageModal(false)}
+                exerciseName={exercise.name}
+                imageUrl={imageUrl}
+                isLoading={isGeneratingImage}
+                error={imageError}
+            />
         </motion.div>
     );
 };

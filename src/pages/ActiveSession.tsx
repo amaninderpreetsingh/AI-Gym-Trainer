@@ -45,6 +45,7 @@ const ActiveSession = () => {
     const isSupported = browserSpeech.isSupported;
     const [micError, setMicError] = useState<string | null>(null);
     const [showExerciseDropdown, setShowExerciseDropdown] = useState(false);
+    const [showFinishConfirmation, setShowFinishConfirmation] = useState(false);
 
     const currentExercise = routine?.exercises[currentExerciseIndex];
     const isLastExercise = currentExerciseIndex === (routine?.exercises.length || 0) - 1;
@@ -277,7 +278,21 @@ const ActiveSession = () => {
         }
     };
 
+    const checkIsRoutineComplete = () => {
+        if (!routine) return false;
+        return routine.exercises.every(ex => {
+            const completed = completedExercises.find(e => e.name === ex.name);
+            return completed && completed.sets.length >= ex.targetSets;
+        });
+    };
 
+    const handleFinishClick = () => {
+        if (checkIsRoutineComplete()) {
+            handleEndSession(true);
+        } else {
+            setShowFinishConfirmation(true);
+        }
+    };
 
     if (isLoading) {
         return (
@@ -428,6 +443,14 @@ const ActiveSession = () => {
                 <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
+                    onClick={handleFinishClick}
+                    className="px-3 py-1.5 rounded-lg bg-primary-500/10 text-primary-400 text-sm font-medium hover:bg-primary-500/20 transition-colors mr-2"
+                >
+                    Finish
+                </motion.button>
+                <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
                     onClick={() => handleEndSession(false)}
                     className="p-2 rounded-lg hover:bg-dark-800 transition-colors"
                     title="End workout without saving"
@@ -527,6 +550,43 @@ const ActiveSession = () => {
                         )}
                     </AnimatePresence>
                 </div>
+
+                <AnimatePresence>
+                    {showFinishConfirmation && (
+                        <>
+                            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                                <motion.div
+                                    initial={{ opacity: 0, scale: 0.95 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    exit={{ opacity: 0, scale: 0.95 }}
+                                    className="bg-dark-800 border border-dark-700 rounded-2xl p-6 max-w-sm w-full shadow-xl"
+                                >
+                                    <h3 className="text-lg font-bold text-white mb-2">Finish Workout?</h3>
+                                    <p className="text-dark-400 mb-6">
+                                        You haven't completed all exercises. Are you sure you want to finish now?
+                                    </p>
+                                    <div className="flex gap-3">
+                                        <button
+                                            onClick={() => setShowFinishConfirmation(false)}
+                                            className="flex-1 py-3 px-4 rounded-xl bg-dark-700 text-white font-medium hover:bg-dark-600 transition-colors"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setShowFinishConfirmation(false);
+                                                handleEndSession(true);
+                                            }}
+                                            className="flex-1 py-3 px-4 rounded-xl bg-primary-500 text-white font-medium hover:bg-primary-600 transition-colors"
+                                        >
+                                            Finish
+                                        </button>
+                                    </div>
+                                </motion.div>
+                            </div>
+                        </>
+                    )}
+                </AnimatePresence>
 
                 <AnimatePresence mode="wait">
                     {currentExercise && (
