@@ -14,7 +14,7 @@ export const generateWorkoutPlan = async (prompt: string): Promise<Exercise[]> =
         throw new Error('Gemini API Key is missing. Please check your environment configuration.');
     }
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
 
     const systemPrompt = `
     You are an expert fitness trainer. Create a workout routine based on the user's request.
