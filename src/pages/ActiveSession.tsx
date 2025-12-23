@@ -56,6 +56,18 @@ const ActiveSession = () => {
         }
     }, [transcript]);
 
+    // Reset transcript after 2 seconds of silence
+    useEffect(() => {
+        if (transcript) {
+            const timer = setTimeout(() => {
+                console.log('🤫 Silence detected - resetting transcript');
+                resetTranscript();
+            }, 2000);
+
+            return () => clearTimeout(timer);
+        }
+    }, [transcript, resetTranscript]);
+
     // Fetch routine
     useEffect(() => {
         const fetchRoutine = async () => {
