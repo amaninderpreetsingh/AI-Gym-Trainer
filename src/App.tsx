@@ -75,6 +75,16 @@ const AppRoutes = () => {
                 }
             />
             <Route
+                path="/edit-routine/:routineId"
+                element={
+                    <ProtectedRoute>
+                        <WithNavigation>
+                            <CreateRoutine />
+                        </WithNavigation>
+                    </ProtectedRoute>
+                }
+            />
+            <Route
                 path="/session/:routineId"
                 element={
                     <ProtectedRoute>

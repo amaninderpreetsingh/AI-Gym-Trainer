@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
     ArrowLeft,
     Plus,
@@ -9,7 +9,7 @@ import {
     Dumbbell
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { createRoutine } from '../services/routineService';
+import { createRoutine, getRoutine, updateRoutine } from '../services/routineService';
 import { Exercise } from '../types';
 
 const muscleGroups = [
@@ -19,11 +19,39 @@ const muscleGroups = [
 const CreateRoutine = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
+    const { routineId } = useParams(); // Get routineId if editing
 
     const [routineName, setRoutineName] = useState('');
     const [exercises, setExercises] = useState<Exercise[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [isFetching, setIsFetching] = useState(!!routineId);
     const [error, setError] = useState<string | null>(null);
+
+    // Fetch existing routine if editing
+    useEffect(() => {
+        const fetchRoutine = async () => {
+            if (!user || !routineId) return;
+
+            try {
+                const routine = await getRoutine(user.uid, routineId);
+                if (routine) {
+                    setRoutineName(routine.name);
+                    setExercises(routine.exercises);
+                } else {
+                    setError('Routine not found');
+                }
+            } catch (err) {
+                console.error('Error fetching routine:', err);
+                setError('Failed to load routine');
+            } finally {
+                setIsFetching(false);
+            }
+        };
+
+        if (routineId) {
+            fetchRoutine();
+        }
+    }, [user, routineId]);
 
     const addExercise = () => {
         setExercises([
@@ -63,15 +91,34 @@ const CreateRoutine = () => {
         setError(null);
 
         try {
-            await createRoutine(user.uid, routineName.trim(), exercises);
+            if (routineId) {
+                // Update existing routine
+                await updateRoutine(user.uid, routineId, routineName.trim(), exercises);
+            } else {
+                // Create new routine
+                await createRoutine(user.uid, routineName.trim(), exercises);
+            }
             navigate('/dashboard');
         } catch (err) {
-            console.error('Error creating routine:', err);
-            setError('Failed to create routine. Please try again.');
+            console.error('Error saving routine:', err);
+            setError('Failed to save routine. Please try again.');
         } finally {
             setIsLoading(false);
         }
     };
+
+    if (isFetching) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                >
+                    <Dumbbell className="w-12 h-12 text-primary-500" />
+                </motion.div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen p-4 md:p-8">
@@ -89,7 +136,7 @@ const CreateRoutine = () => {
                 >
                     <ArrowLeft className="w-5 h-5" />
                 </motion.button>
-                <h1 className="text-2xl font-bold">Create New Routine</h1>
+                <h1 className="text-2xl font-bold">{routineId ? 'Edit Routine' : 'Create New Routine'}</h1>
             </motion.header>
 
             <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
@@ -279,7 +326,7 @@ const CreateRoutine = () => {
                         ) : (
                             <>
                                 <Save className="w-5 h-5" />
-                                Save
+                                {routineId ? 'Update Routine' : 'Create Routine'}
                             </>
                         )}
                     </motion.button>

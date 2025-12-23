@@ -126,33 +126,38 @@ const ActiveSession = () => {
             timestamp: new Date()
         };
 
-        setCompletedExercises((prev) => {
-            const existing = prev.find(e => e.name === currentExercise.name);
-            if (existing) {
-                return prev.map(e =>
-                    e.name === currentExercise.name
-                        ? { ...e, sets: [...e.sets, newSet] }
-                        : e
-                );
-            }
-            return [...prev, { name: currentExercise.name, sets: [newSet] }];
-        });
+        // Calculate updated exercises immediately to handle race condition on last set
+        let updatedExercises: CompletedExercise[] = [];
+        const existing = completedExercises.find(e => e.name === currentExercise.name);
+
+        if (existing) {
+            updatedExercises = completedExercises.map(e =>
+                e.name === currentExercise.name
+                    ? { ...e, sets: [...e.sets, newSet] }
+                    : e
+            );
+        } else {
+            updatedExercises = [...completedExercises, { name: currentExercise.name, sets: [newSet] }];
+        }
+
+        setCompletedExercises(updatedExercises);
 
         if (currentSetIndex < currentExercise.targetSets) {
             console.log(`📈 Set ${currentSetIndex}/${currentExercise.targetSets} logged, moving to next set`);
             setCurrentSetIndex((prev) => prev + 1);
         } else {
             console.log(`✅ All ${currentExercise.targetSets} sets complete, advancing to next exercise`);
-            handleNextExercise();
+            // Pass the updated exercises to ensure the last set is saved
+            handleNextExercise(updatedExercises);
         }
     };
 
-    const handleNextExercise = () => {
+    const handleNextExercise = (exercisesOverride?: CompletedExercise[]) => {
         if (isLastExercise) {
             if (voiceEnabled) {
                 announceWorkoutComplete();
             }
-            handleEndSession();
+            handleEndSession(true, exercisesOverride);
         } else {
             const nextExercise = routine?.exercises[currentExerciseIndex + 1];
             if (nextExercise && voiceEnabled) {
@@ -200,11 +205,13 @@ const ActiveSession = () => {
         startListening();
     };
 
-    const handleEndSession = async (saveData: boolean = true) => {
+    const handleEndSession = async (saveData: boolean = true, exercisesToSave?: CompletedExercise[]) => {
         stopListening();
 
+        const exercises = exercisesToSave || completedExercises;
+
         // Save workout to Firestore if we have data
-        if (saveData && user && routine && routineId && completedExercises.length > 0 && sessionStartTimeRef.current) {
+        if (saveData && user && routine && routineId && exercises.length > 0 && sessionStartTimeRef.current) {
             setIsSaving(true);
             try {
                 // Get muscle group mapping from routine for denormalized storage
@@ -216,7 +223,7 @@ const ActiveSession = () => {
                     routine.name,
                     sessionStartTimeRef.current,
                     new Date(),
-                    completedExercises,
+                    exercises,
                     muscleGroupMap
                 );
             } catch (error) {

@@ -7,7 +7,8 @@ import {
     Plus,
     Play,
     Trash2,
-    Zap
+    Zap,
+    Edit2
 } from 'lucide-react';
 import { getRoutines, deleteRoutine } from '../services/routineService';
 import { Routine } from '../types';
@@ -182,15 +183,28 @@ const Dashboard = () => {
                                                     <p className="text-dark-400 text-xs mt-0.5">{routine.exercises.length} exercises</p>
                                                 </div>
                                             </div>
-                                            <motion.button
-                                                whileHover={{ scale: 1.1 }}
-                                                whileTap={{ scale: 0.9 }}
-                                                onClick={(e) => handleDeleteRoutine(routine.id, e)}
-                                                disabled={deletingId === routine.id}
-                                                className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-red-500/20 text-dark-500 hover:text-red-400 transition-all"
-                                            >
-                                                <Trash2 className="w-3.5 h-3.5" />
-                                            </motion.button>
+                                            <div className="flex gap-1">
+                                                <motion.button
+                                                    whileHover={{ scale: 1.1 }}
+                                                    whileTap={{ scale: 0.9 }}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        navigate(`/edit-routine/${routine.id}`);
+                                                    }}
+                                                    className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-primary-500/20 text-dark-500 hover:text-primary-400 transition-all"
+                                                >
+                                                    <Edit2 className="w-3.5 h-3.5" />
+                                                </motion.button>
+                                                <motion.button
+                                                    whileHover={{ scale: 1.1 }}
+                                                    whileTap={{ scale: 0.9 }}
+                                                    onClick={(e) => handleDeleteRoutine(routine.id, e)}
+                                                    disabled={deletingId === routine.id}
+                                                    className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-red-500/20 text-dark-500 hover:text-red-400 transition-all"
+                                                >
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                </motion.button>
+                                            </div>
                                         </div>
 
                                         {/* Exercise Pills */}
