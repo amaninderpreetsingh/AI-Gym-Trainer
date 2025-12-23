@@ -5,7 +5,10 @@ import {
     ArrowLeft,
     Dumbbell,
     TrendingUp,
-    ChevronDown
+    ChevronDown,
+    Filter,
+    X,
+    Check
 } from 'lucide-react';
 import {
     LineChart,
@@ -18,7 +21,8 @@ import {
 } from 'recharts';
 import { useAuth } from '../contexts/AuthContext';
 import { getWorkoutLogs } from '../services/workoutLogService';
-import { WorkoutLog } from '../types';
+import { getRoutines } from '../services/routineService';
+import { WorkoutLog, Routine } from '../types';
 
 interface ExerciseDataPoint {
     index: number;
@@ -57,19 +61,25 @@ const Progress = () => {
     const navigate = useNavigate();
 
     const [logs, setLogs] = useState<WorkoutLog[]>([]);
+    const [routines, setRoutines] = useState<Routine[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [selectedExercise, setSelectedExercise] = useState<string>('');
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const [selectedMuscleGroups, setSelectedMuscleGroups] = useState<string[]>([]);
 
     useEffect(() => {
         const fetchData = async () => {
             if (!user) return;
 
             try {
-                const logsData = await getWorkoutLogs(user.uid, 100);
+                const [logsData, routinesData] = await Promise.all([
+                    getWorkoutLogs(user.uid, 100),
+                    getRoutines(user.uid)
+                ]);
                 setLogs(logsData);
+                setRoutines(routinesData);
             } catch (error) {
-                console.error('Error fetching workout logs:', error);
+                console.error('Error fetching data:', error);
             } finally {
                 setIsLoading(false);
             }
@@ -77,6 +87,43 @@ const Progress = () => {
 
         fetchData();
     }, [user]);
+
+    // Build exercise to muscle group mapping from routines
+    const exerciseMuscleMap = useMemo((): Record<string, string> => {
+        const mapping: Record<string, string> = {};
+        routines.forEach(routine => {
+            routine.exercises.forEach(exercise => {
+                if (!mapping[exercise.name]) {
+                    mapping[exercise.name] = exercise.muscleGroup;
+                }
+            });
+        });
+        return mapping;
+    }, [routines]);
+
+    // Get all unique muscle groups
+    const allMuscleGroups = useMemo(() => {
+        const groups = new Set<string>();
+        Object.values(exerciseMuscleMap).forEach(group => groups.add(group));
+        return Array.from(groups).sort();
+    }, [exerciseMuscleMap]);
+
+    // Toggle muscle group selection
+    const toggleMuscleGroup = (group: string) => {
+        setSelectedMuscleGroups(prev =>
+            prev.includes(group)
+                ? prev.filter(g => g !== group)
+                : [...prev, group]
+        );
+        // Reset selected exercise when filter changes
+        setSelectedExercise('');
+    };
+
+    // Clear all muscle group filters
+    const clearMuscleFilters = () => {
+        setSelectedMuscleGroups([]);
+        setSelectedExercise('');
+    };
 
     // Process logs to get exercise progress data
     const exerciseProgress = useMemo((): ExerciseProgress => {
@@ -117,10 +164,20 @@ const Progress = () => {
         return progress;
     }, [logs]);
 
-    // Get list of unique exercise names
+    // Get list of unique exercise names (filtered by muscle group)
     const exerciseNames = useMemo(() => {
-        return Object.keys(exerciseProgress).sort();
-    }, [exerciseProgress]);
+        let names = Object.keys(exerciseProgress).sort();
+
+        // Filter by selected muscle groups if any
+        if (selectedMuscleGroups.length > 0) {
+            names = names.filter(name => {
+                const muscleGroup = exerciseMuscleMap[name];
+                return muscleGroup && selectedMuscleGroups.includes(muscleGroup);
+            });
+        }
+
+        return names;
+    }, [exerciseProgress, selectedMuscleGroups, exerciseMuscleMap]);
 
     // Set default selected exercise
     useEffect(() => {
@@ -189,6 +246,55 @@ const Progress = () => {
                 </motion.div>
             ) : (
                 <div className="max-w-4xl mx-auto">
+                    {/* Muscle Group Filter */}
+                    {allMuscleGroups.length > 0 && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="mb-6"
+                        >
+                            <div className="flex items-center justify-between mb-2">
+                                <label className="text-sm text-dark-400 flex items-center gap-2">
+                                    <Filter className="w-4 h-4" />
+                                    Filter by Muscle Group
+                                </label>
+                                {selectedMuscleGroups.length > 0 && (
+                                    <button
+                                        onClick={clearMuscleFilters}
+                                        className="text-xs text-dark-400 hover:text-white flex items-center gap-1 transition-colors"
+                                    >
+                                        <X className="w-3 h-3" />
+                                        Clear
+                                    </button>
+                                )}
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                                {allMuscleGroups.map(group => (
+                                    <motion.button
+                                        key={group}
+                                        whileHover={{ scale: 1.02 }}
+                                        whileTap={{ scale: 0.98 }}
+                                        onClick={() => toggleMuscleGroup(group)}
+                                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${selectedMuscleGroups.includes(group)
+                                            ? 'bg-primary-500 text-white'
+                                            : 'glass text-dark-300 hover:text-white hover:bg-dark-700/50'
+                                            }`}
+                                    >
+                                        {selectedMuscleGroups.includes(group) && (
+                                            <Check className="w-3 h-3" />
+                                        )}
+                                        {group}
+                                    </motion.button>
+                                ))}
+                            </div>
+                            {selectedMuscleGroups.length > 0 && (
+                                <p className="text-xs text-dark-500 mt-2">
+                                    Showing {exerciseNames.length} exercise{exerciseNames.length !== 1 ? 's' : ''} matching {selectedMuscleGroups.length} muscle group{selectedMuscleGroups.length !== 1 ? 's' : ''}
+                                </p>
+                            )}
+                        </motion.div>
+                    )}
+
                     {/* Exercise Selector */}
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
