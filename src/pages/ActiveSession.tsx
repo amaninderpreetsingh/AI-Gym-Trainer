@@ -26,7 +26,8 @@ const ActiveSession = () => {
     const [isSessionStarted, setIsSessionStarted] = useState(false);
     const [completedExercises, setCompletedExercises] = useState<CompletedExercise[]>([]);
     const [elapsedTime, setElapsedTime] = useState(0);
-    const [voiceEnabled, setVoiceEnabled] = useState(globalVoiceEnabled);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const [voiceEnabled] = useState(globalVoiceEnabled);
     const [lastVoiceLog, setLastVoiceLog] = useState<string | null>(null);
     const sessionStartTimeRef = useRef<Date | null>(null);
 
