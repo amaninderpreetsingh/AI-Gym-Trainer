@@ -1,9 +1,12 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { SettingsProvider } from './contexts/SettingsContext';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import CreateRoutine from './pages/CreateRoutine';
 import ActiveSession from './pages/ActiveSession';
+import Settings from './pages/Settings';
+import History from './pages/History';
 import { ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { Dumbbell } from 'lucide-react';
@@ -61,6 +64,22 @@ const AppRoutes = () => {
                     </ProtectedRoute>
                 }
             />
+            <Route
+                path="/settings"
+                element={
+                    <ProtectedRoute>
+                        <Settings />
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/history"
+                element={
+                    <ProtectedRoute>
+                        <History />
+                    </ProtectedRoute>
+                }
+            />
             {/* Catch all - redirect to home */}
             <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
@@ -71,7 +90,9 @@ function App() {
     return (
         <Router>
             <AuthProvider>
-                <AppRoutes />
+                <SettingsProvider>
+                    <AppRoutes />
+                </SettingsProvider>
             </AuthProvider>
         </Router>
     );

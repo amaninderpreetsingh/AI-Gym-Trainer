@@ -9,7 +9,9 @@ import {
     User,
     Play,
     Trash2,
-    Zap
+    Zap,
+    Settings,
+    Clock
 } from 'lucide-react';
 import { getRoutines, deleteRoutine } from '../services/routineService';
 import { Routine } from '../types';
@@ -116,6 +118,26 @@ const Dashboard = () => {
                             {user?.displayName?.split(' ')[0] || user?.email?.split('@')[0]}
                         </span>
                     </div>
+
+                    <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => navigate('/history')}
+                        className="p-2 rounded-lg glass hover:bg-dark-700 transition-colors"
+                        title="Workout History"
+                    >
+                        <Clock className="w-4 h-4 text-dark-400" />
+                    </motion.button>
+
+                    <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => navigate('/settings')}
+                        className="p-2 rounded-lg glass hover:bg-dark-700 transition-colors"
+                        title="Settings"
+                    >
+                        <Settings className="w-4 h-4 text-dark-400" />
+                    </motion.button>
 
                     <motion.button
                         whileHover={{ scale: 1.05 }}

@@ -1,27 +1,62 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, X, Timer, Dumbbell } from 'lucide-react';
+import { ArrowLeft, X, Timer, Dumbbell, Volume2, VolumeX, Settings, Mic } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useSettings } from '../contexts/SettingsContext';
 import { getRoutine } from '../services/routineService';
+import { saveWorkoutLog } from '../services/workoutLogService';
 import { Routine, CompletedExercise, LoggedSet } from '../types';
 import CurrentExerciseCard from '../components/CurrentExerciseCard';
 import NextUpPreview from '../components/NextUpPreview';
 import ListeningIndicator from '../components/ListeningIndicator';
+import useTextToSpeech from '../hooks/useTextToSpeech';
+import useSpeechRecognition from '../hooks/useSpeechRecognition';
+import useVoiceCommands from '../hooks/useVoiceCommands';
 
 const ActiveSession = () => {
     const { routineId } = useParams<{ routineId: string }>();
     const { user } = useAuth();
+    const { voiceEnabled: globalVoiceEnabled } = useSettings();
     const navigate = useNavigate();
 
     const [routine, setRoutine] = useState<Routine | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
     const [currentSetIndex, setCurrentSetIndex] = useState(1);
-    const [isListening, setIsListening] = useState(false);
     const [isSessionStarted, setIsSessionStarted] = useState(false);
     const [completedExercises, setCompletedExercises] = useState<CompletedExercise[]>([]);
     const [elapsedTime, setElapsedTime] = useState(0);
+    const [voiceEnabled, setVoiceEnabled] = useState(globalVoiceEnabled);
+    const [lastVoiceLog, setLastVoiceLog] = useState<string | null>(null);
+    const [isSaving, setIsSaving] = useState(false);
+    const sessionStartTimeRef = useRef<Date | null>(null);
+
+    // Voice hooks
+    const { speak, announceExercise, announceSetLogged, announceNextExercise, announceWorkoutComplete } = useTextToSpeech();
+
+    // Browser speech recognition (always use this for now)
+    const browserSpeech = useSpeechRecognition();
+
+    // For now, always use browser speech - AssemblyAI has CORS issues from localhost
+    const transcript = browserSpeech.transcript;
+    const isListening = browserSpeech.isListening;
+    const startListening = browserSpeech.startListening;
+    const stopListening = browserSpeech.stopListening;
+    const resetTranscript = browserSpeech.resetTranscript;
+    const isSupported = browserSpeech.isSupported;
+    const speechError = browserSpeech.error;
+    const [micError, setMicError] = useState<string | null>(null);
+
+    const currentExercise = routine?.exercises[currentExerciseIndex];
+    const isLastExercise = currentExerciseIndex === (routine?.exercises.length || 0) - 1;
+
+    // Debug: Log transcript changes
+    useEffect(() => {
+        if (transcript) {
+            console.log('📝 Transcript updated:', transcript);
+        }
+    }, [transcript]);
 
     // Fetch routine
     useEffect(() => {
@@ -52,14 +87,26 @@ const ActiveSession = () => {
         return () => clearInterval(interval);
     }, [isSessionStarted]);
 
+    // Cleanup: Stop listening when leaving the page
+    useEffect(() => {
+        return () => {
+            console.log('🛑 Leaving routine - stopping mic');
+            stopListening();
+        };
+    }, [stopListening]);
+
+    // Announce exercise when it changes
+    useEffect(() => {
+        if (isSessionStarted && currentExercise && voiceEnabled) {
+            announceExercise(currentExercise.name, currentSetIndex, currentExercise.targetSets);
+        }
+    }, [currentExerciseIndex, isSessionStarted]);
+
     const formatTime = (seconds: number) => {
         const mins = Math.floor(seconds / 60);
         const secs = seconds % 60;
         return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     };
-
-    const currentExercise = routine?.exercises[currentExerciseIndex];
-    const isLastExercise = currentExerciseIndex === (routine?.exercises.length || 0) - 1;
 
     const getCurrentExerciseLog = (): CompletedExercise | undefined => {
         return completedExercises.find(e => e.name === currentExercise?.name);
@@ -91,36 +138,110 @@ const ActiveSession = () => {
             return [...prev, { name: currentExercise.name, sets: [newSet] }];
         });
 
-        // Move to next set or next exercise
         if (currentSetIndex < currentExercise.targetSets) {
+            console.log(`📈 Set ${currentSetIndex}/${currentExercise.targetSets} logged, moving to next set`);
             setCurrentSetIndex((prev) => prev + 1);
         } else {
-            // Last set logged, go to next exercise
+            console.log(`✅ All ${currentExercise.targetSets} sets complete, advancing to next exercise`);
             handleNextExercise();
         }
     };
 
     const handleNextExercise = () => {
         if (isLastExercise) {
+            if (voiceEnabled) {
+                announceWorkoutComplete();
+            }
             handleEndSession();
         } else {
+            const nextExercise = routine?.exercises[currentExerciseIndex + 1];
+            if (nextExercise && voiceEnabled) {
+                announceNextExercise(nextExercise.name);
+            }
             setCurrentExerciseIndex((prev) => prev + 1);
             setCurrentSetIndex(1);
         }
     };
 
+    // Handle voice commands - defined after handleLogSet and handleNextExercise
+    const handleVoiceCommand = useCallback((command: { type: string; weight?: number; reps?: number; rawText: string }) => {
+        console.log('🗣️ Voice command received:', command);
+        if (!currentExercise || !voiceEnabled) {
+            console.log('⚠️ Cannot process - no exercise or voice disabled');
+            return;
+        }
+
+        if (command.type === 'log_set' && command.weight !== undefined && command.reps !== undefined) {
+            console.log(`📝 Logging set: ${command.weight} lbs × ${command.reps} reps`);
+            handleLogSet(command.weight, command.reps);
+            setLastVoiceLog(`Logged: ${command.weight} lbs × ${command.reps} reps`);
+            announceSetLogged(command.weight, command.reps);
+            setTimeout(() => setLastVoiceLog(null), 3000);
+        } else if (command.type === 'next_exercise') {
+            handleNextExercise();
+        }
+
+        resetTranscript();
+    }, [currentExercise, voiceEnabled, announceSetLogged, resetTranscript]);
+
+    // Voice commands hook
+    useVoiceCommands(transcript, {
+        triggerPhrases: ['hey trainer', 'hey traina', 'a trainer', 'trainer', 'who trainer', 'the trainer'],
+        onCommand: handleVoiceCommand,
+        enabled: voiceEnabled && isSessionStarted
+    });
+
     const handleStartSession = () => {
         setIsSessionStarted(true);
-        setIsListening(true);
+        sessionStartTimeRef.current = new Date();
+        setMicError(null);
+
+        // Start listening - SpeechRecognition will handle mic permission
+        startListening();
+
+        // if (voiceEnabled && currentExercise) {
+        //     setTimeout(() => {
+        //         setTimeout(() => {
+        //             announceExercise(currentExercise.name, 1, currentExercise.targetSets);
+        //         }, 2000);
+        //     }, 500);
+        // }
     };
 
-    const handleEndSession = () => {
-        // TODO: Save to Firestore in Phase 5
+    const handleEndSession = async (saveData: boolean = true) => {
+        stopListening();
+
+        // Save workout to Firestore if we have data
+        if (saveData && user && routine && routineId && completedExercises.length > 0 && sessionStartTimeRef.current) {
+            setIsSaving(true);
+            try {
+                await saveWorkoutLog(
+                    user.uid,
+                    routineId,
+                    routine.name,
+                    sessionStartTimeRef.current,
+                    new Date(),
+                    completedExercises
+                );
+            } catch (error) {
+                console.error('Error saving workout:', error);
+            }
+            setIsSaving(false);
+        }
+
         navigate('/dashboard');
     };
 
     const toggleListening = () => {
-        setIsListening((prev) => !prev);
+        if (isListening) {
+            stopListening();
+        } else {
+            startListening();
+        }
+    };
+
+    const toggleVoice = () => {
+        setVoiceEnabled((prev) => !prev);
     };
 
     if (isLoading) {
@@ -162,17 +283,29 @@ const ActiveSession = () => {
                 <motion.header
                     initial={{ opacity: 0, y: -20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="flex items-center gap-4 mb-8"
+                    className="flex items-center justify-between mb-8"
                 >
+                    <div className="flex items-center gap-4">
+                        <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => navigate('/dashboard')}
+                            className="p-2 rounded-xl glass hover:bg-dark-700 transition-colors"
+                        >
+                            <ArrowLeft className="w-5 h-5" />
+                        </motion.button>
+                        <h1 className="text-xl font-bold">{routine.name}</h1>
+                    </div>
+
                     <motion.button
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
-                        onClick={() => navigate('/dashboard')}
+                        onClick={() => navigate('/settings')}
                         className="p-2 rounded-xl glass hover:bg-dark-700 transition-colors"
+                        title="Settings"
                     >
-                        <ArrowLeft className="w-5 h-5" />
+                        <Settings className="w-5 h-5 text-dark-400" />
                     </motion.button>
-                    <h1 className="text-xl font-bold">{routine.name}</h1>
                 </motion.header>
 
                 {/* Exercise Overview */}
@@ -198,6 +331,22 @@ const ActiveSession = () => {
                                 </div>
                             ))}
                         </div>
+                    </div>
+
+                    {/* Voice Provider Info */}
+                    <div className="glass rounded-xl p-4 mb-4">
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                                <Mic className="w-4 h-4 text-green-400" />
+                                <span className="text-sm font-medium">Browser Voice</span>
+                                <span className="px-1.5 py-0.5 rounded text-xs bg-green-500/20 text-green-400">
+                                    Free
+                                </span>
+                            </div>
+                        </div>
+                        <p className="text-xs text-dark-500">
+                            Say <span className="text-primary-400 font-medium">"Hey Trainer, 50 pounds 10 reps"</span> to log sets
+                        </p>
                     </div>
 
                     {/* Start Button */}
@@ -229,6 +378,23 @@ const ActiveSession = () => {
                         <Timer className="w-4 h-4" />
                         <span className="font-mono text-sm">{formatTime(elapsedTime)}</span>
                     </div>
+
+                    {/* Provider indicator */}
+                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-green-500/20 text-green-400">
+                        <Mic className="w-3 h-3" />
+                        Free
+                    </div>
+
+                    {/* Voice toggle */}
+                    <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={toggleVoice}
+                        className={`p-1.5 rounded-lg transition-colors ${voiceEnabled ? 'text-primary-400' : 'text-dark-500'}`}
+                        title={voiceEnabled ? 'Mute voice' : 'Enable voice'}
+                    >
+                        {voiceEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+                    </motion.button>
                 </div>
 
                 <span className="text-sm font-medium text-dark-300">{routine.name}</span>
@@ -236,12 +402,41 @@ const ActiveSession = () => {
                 <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    onClick={handleEndSession}
+                    onClick={() => handleEndSession(false)}
                     className="p-2 rounded-lg hover:bg-dark-800 transition-colors"
+                    title="End workout without saving"
                 >
                     <X className="w-5 h-5 text-dark-400" />
                 </motion.button>
             </motion.header>
+
+            {/* Voice Log Feedback */}
+            <AnimatePresence>
+                {lastVoiceLog && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        className="mx-4 mt-2 p-3 rounded-xl bg-green-500/20 border border-green-500/30 text-center"
+                    >
+                        <p className="text-green-400 text-sm font-medium">🎤 {lastVoiceLog}</p>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Debug Info */}
+            <div className="mx-4 mt-2 p-2 rounded-lg bg-dark-800/50 text-xs text-dark-400">
+                <div className="flex gap-4 items-center flex-wrap">
+                    <span>🎤 Status: {isListening ? '✅ Listening' : '❌ Not listening'}</span>
+                    <span>🔧 Supported: {isSupported ? '✅ Yes' : '❌ No'}</span>
+                    <span>🧠 Provider: Browser</span>
+                </div>
+                {transcript && (
+                    <div className="mt-1 truncate">
+                        💬 Heard: {transcript.slice(-100)}
+                    </div>
+                )}
+            </div>
 
             {/* Main Content */}
             <div className="flex-1 flex flex-col p-4 gap-6 overflow-y-auto">
@@ -264,7 +459,11 @@ const ActiveSession = () => {
                 {/* Listening Indicator */}
                 <div className="flex justify-center py-2">
                     <div onClick={toggleListening} className="cursor-pointer">
-                        <ListeningIndicator isListening={isListening} />
+                        <ListeningIndicator
+                            isListening={isListening}
+                            isSupported={isSupported}
+                            error={micError}
+                        />
                     </div>
                 </div>
 
