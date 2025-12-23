@@ -198,14 +198,6 @@ const ActiveSession = () => {
 
         // Start listening - SpeechRecognition will handle mic permission
         startListening();
-
-        // if (voiceEnabled && currentExercise) {
-        //     setTimeout(() => {
-        //         setTimeout(() => {
-        //             announceExercise(currentExercise.name, 1, currentExercise.targetSets);
-        //         }, 2000);
-        //     }, 500);
-        // }
     };
 
     const handleEndSession = async (saveData: boolean = true) => {
