@@ -6,10 +6,13 @@ import {
     Plus,
     Trash2,
     Save,
-    Dumbbell
+    Dumbbell,
+    Sparkles,
+    X
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { createRoutine, getRoutine, updateRoutine } from '../services/routineService';
+import { generateWorkoutPlan } from '../services/aiService';
 import { Exercise } from '../types';
 
 const muscleGroups = [
@@ -26,6 +29,11 @@ const CreateRoutine = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [isFetching, setIsFetching] = useState(!!routineId);
     const [error, setError] = useState<string | null>(null);
+
+    // AI Generation State
+    const [showAiModal, setShowAiModal] = useState(false);
+    const [aiPrompt, setAiPrompt] = useState('');
+    const [isGenerating, setIsGenerating] = useState(false);
 
     // Fetch existing routine if editing
     useEffect(() => {
@@ -68,6 +76,26 @@ const CreateRoutine = () => {
 
     const removeExercise = (index: number) => {
         setExercises(exercises.filter((_, i) => i !== index));
+    };
+
+    const handleAiGenerate = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!aiPrompt.trim()) return;
+
+        setIsGenerating(true);
+        setError(null);
+
+        try {
+            const generatedExercises = await generateWorkoutPlan(aiPrompt);
+            setExercises(generatedExercises);
+            setShowAiModal(false);
+            setAiPrompt('');
+        } catch (err) {
+            console.error('AI Generation Error:', err);
+            setError('Failed to generate workout. Please try again or create manually.');
+        } finally {
+            setIsGenerating(false);
+        }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -137,6 +165,16 @@ const CreateRoutine = () => {
                     <ArrowLeft className="w-5 h-5" />
                 </motion.button>
                 <h1 className="text-2xl font-bold">{routineId ? 'Edit Routine' : 'Create New Routine'}</h1>
+
+                <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setShowAiModal(true)}
+                    className="ml-auto flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-500 to-pink-600 text-white font-medium text-sm shadow-lg hover:shadow-purple-500/25 transition-all"
+                >
+                    <Sparkles className="w-4 h-4" />
+                    <span className="hidden sm:inline">Generate with AI</span>
+                </motion.button>
             </motion.header>
 
             <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
@@ -332,7 +370,75 @@ const CreateRoutine = () => {
                     </motion.button>
                 </motion.div>
             </form>
-        </div>
+
+            {/* AI Generation Modal */}
+            <AnimatePresence>
+                {showAiModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.9 }}
+                            className="w-full max-w-md bg-dark-800 rounded-2xl border border-dark-700 shadow-2xl overflow-hidden"
+                        >
+                            <div className="p-6">
+                                <div className="flex justify-between items-center mb-4">
+                                    <div className="flex items-center gap-2 text-purple-400">
+                                        <Sparkles className="w-5 h-5" />
+                                        <h3 className="text-lg font-bold text-white">Generate Workout</h3>
+                                    </div>
+                                    <button
+                                        onClick={() => setShowAiModal(false)}
+                                        className="text-dark-400 hover:text-white transition-colors"
+                                    >
+                                        <X className="w-5 h-5" />
+                                    </button>
+                                </div>
+
+                                <p className="text-dark-400 text-sm mb-4">
+                                    Describe your fitness goals, available equipment, or focus areas, and AI will create a routine for you.
+                                </p>
+
+                                <form onSubmit={handleAiGenerate}>
+                                    <textarea
+                                        value={aiPrompt}
+                                        onChange={(e) => setAiPrompt(e.target.value)}
+                                        placeholder="e.g., 'High intensity interval training for legs' or '30 minute full body dumbbell workout'"
+                                        className="w-full h-32 px-4 py-3 rounded-xl bg-dark-900 border border-dark-700 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-colors text-white placeholder-dark-500 resize-none mb-4"
+                                    />
+
+                                    <div className="flex gap-3">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowAiModal(false)}
+                                            className="flex-1 py-3 rounded-xl bg-dark-700 hover:bg-dark-600 text-white font-medium transition-colors"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            disabled={isGenerating || !aiPrompt.trim()}
+                                            className="flex-1 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                        >
+                                            {isGenerating ? (
+                                                <motion.div
+                                                    animate={{ rotate: 360 }}
+                                                    transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                                                >
+                                                    <Sparkles className="w-5 h-5" />
+                                                </motion.div>
+                                            ) : (
+                                                'Generate'
+                                            )}
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+        </div >
     );
 };
 

@@ -29,11 +29,10 @@ const ActiveSession = () => {
     const [elapsedTime, setElapsedTime] = useState(0);
     const [voiceEnabled, setVoiceEnabled] = useState(globalVoiceEnabled);
     const [lastVoiceLog, setLastVoiceLog] = useState<string | null>(null);
-    const [isSaving, setIsSaving] = useState(false);
     const sessionStartTimeRef = useRef<Date | null>(null);
 
     // Voice hooks
-    const { speak, announceExercise, announceSetLogged, announceNextExercise, announceWorkoutComplete } = useTextToSpeech();
+    const { announceExercise, announceSetLogged, announceNextExercise, announceWorkoutComplete } = useTextToSpeech();
 
     // Browser speech recognition (always use this for now)
     const browserSpeech = useSpeechRecognition();
@@ -45,7 +44,6 @@ const ActiveSession = () => {
     const stopListening = browserSpeech.stopListening;
     const resetTranscript = browserSpeech.resetTranscript;
     const isSupported = browserSpeech.isSupported;
-    const speechError = browserSpeech.error;
     const [micError, setMicError] = useState<string | null>(null);
 
     const currentExercise = routine?.exercises[currentExerciseIndex];
@@ -212,7 +210,6 @@ const ActiveSession = () => {
 
         // Save workout to Firestore if we have data
         if (saveData && user && routine && routineId && exercises.length > 0 && sessionStartTimeRef.current) {
-            setIsSaving(true);
             try {
                 // Get muscle group mapping from routine for denormalized storage
                 const muscleGroupMap = getExerciseMuscleGroupMap(routine);
@@ -229,7 +226,6 @@ const ActiveSession = () => {
             } catch (error) {
                 console.error('Error saving workout:', error);
             }
-            setIsSaving(false);
         }
 
         navigate('/dashboard');
