@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import CreateRoutine from './pages/CreateRoutine';
+import ActiveSession from './pages/ActiveSession';
 import { ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { Dumbbell } from 'lucide-react';
@@ -49,6 +50,14 @@ const AppRoutes = () => {
                 element={
                     <ProtectedRoute>
                         <CreateRoutine />
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/session/:routineId"
+                element={
+                    <ProtectedRoute>
+                        <ActiveSession />
                     </ProtectedRoute>
                 }
             />
