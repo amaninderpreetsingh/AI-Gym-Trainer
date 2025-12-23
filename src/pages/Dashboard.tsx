@@ -5,14 +5,9 @@ import { useNavigate } from 'react-router-dom';
 import {
     Dumbbell,
     Plus,
-    LogOut,
-    User,
     Play,
     Trash2,
-    Zap,
-    Settings,
-    Clock,
-    TrendingUp
+    Zap
 } from 'lucide-react';
 import { getRoutines, deleteRoutine } from '../services/routineService';
 import { Routine } from '../types';
@@ -30,7 +25,7 @@ const muscleColors: Record<string, string> = {
 };
 
 const Dashboard = () => {
-    const { user, logout } = useAuth();
+    const { user } = useAuth();
     const navigate = useNavigate();
 
     const [routines, setRoutines] = useState<Routine[]>([]);
@@ -54,14 +49,7 @@ const Dashboard = () => {
         fetchRoutines();
     }, [user]);
 
-    const handleLogout = async () => {
-        try {
-            await logout();
-            navigate('/');
-        } catch (error) {
-            console.error('Failed to logout:', error);
-        }
-    };
+
 
     const handleDeleteRoutine = async (routineId: string, e: React.MouseEvent) => {
         e.stopPropagation();
@@ -89,76 +77,17 @@ const Dashboard = () => {
 
     return (
         <div className="min-h-screen p-4 md:p-6">
-            {/* Header */}
+            {/* Header - Mobile only (desktop nav is in Navigation component) */}
             <motion.header
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="flex items-center justify-between mb-6"
+                className="flex items-center justify-between mb-6 md:hidden"
             >
                 <div className="flex items-center gap-2">
                     <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center">
                         <Dumbbell className="w-4 h-4 text-white" />
                     </div>
                     <h1 className="text-lg font-bold gradient-text">AI Gym Trainer</h1>
-                </div>
-
-                <div className="flex items-center gap-3">
-                    <div className="hidden sm:flex items-center gap-2 glass rounded-full py-1.5 px-3">
-                        {user?.photoURL ? (
-                            <img
-                                src={user.photoURL}
-                                alt={user.displayName || 'User'}
-                                className="w-6 h-6 rounded-full"
-                            />
-                        ) : (
-                            <div className="w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center">
-                                <User className="w-3 h-3 text-white" />
-                            </div>
-                        )}
-                        <span className="text-sm text-dark-200">
-                            {user?.displayName?.split(' ')[0] || user?.email?.split('@')[0]}
-                        </span>
-                    </div>
-
-                    <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => navigate('/history')}
-                        className="p-2 rounded-lg glass hover:bg-dark-700 transition-colors"
-                        title="Workout History"
-                    >
-                        <Clock className="w-4 h-4 text-dark-400" />
-                    </motion.button>
-
-                    <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => navigate('/progress')}
-                        className="p-2 rounded-lg glass hover:bg-dark-700 transition-colors"
-                        title="Progress"
-                    >
-                        <TrendingUp className="w-4 h-4 text-dark-400" />
-                    </motion.button>
-
-                    <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => navigate('/settings')}
-                        className="p-2 rounded-lg glass hover:bg-dark-700 transition-colors"
-                        title="Settings"
-                    >
-                        <Settings className="w-4 h-4 text-dark-400" />
-                    </motion.button>
-
-                    <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={handleLogout}
-                        className="p-2 rounded-lg glass hover:bg-dark-700 transition-colors"
-                        title="Logout"
-                    >
-                        <LogOut className="w-4 h-4 text-dark-400" />
-                    </motion.button>
                 </div>
             </motion.header>
 

@@ -8,6 +8,7 @@ import ActiveSession from './pages/ActiveSession';
 import Settings from './pages/Settings';
 import History from './pages/History';
 import Progress from './pages/Progress';
+import Navigation from './components/Navigation';
 import { ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { Dumbbell } from 'lucide-react';
@@ -36,6 +37,18 @@ const ProtectedRoute = ({ children }: { children: ReactNode }) => {
     return <>{children}</>;
 };
 
+// Layout with Navigation (for pages that need nav)
+const WithNavigation = ({ children }: { children: ReactNode }) => {
+    return (
+        <>
+            <Navigation />
+            <div className="md:pt-16 pb-20 md:pb-0">
+                {children}
+            </div>
+        </>
+    );
+};
+
 // App Routes
 const AppRoutes = () => {
     return (
@@ -45,7 +58,9 @@ const AppRoutes = () => {
                 path="/dashboard"
                 element={
                     <ProtectedRoute>
-                        <Dashboard />
+                        <WithNavigation>
+                            <Dashboard />
+                        </WithNavigation>
                     </ProtectedRoute>
                 }
             />
@@ -53,7 +68,9 @@ const AppRoutes = () => {
                 path="/create-routine"
                 element={
                     <ProtectedRoute>
-                        <CreateRoutine />
+                        <WithNavigation>
+                            <CreateRoutine />
+                        </WithNavigation>
                     </ProtectedRoute>
                 }
             />
@@ -69,7 +86,9 @@ const AppRoutes = () => {
                 path="/settings"
                 element={
                     <ProtectedRoute>
-                        <Settings />
+                        <WithNavigation>
+                            <Settings />
+                        </WithNavigation>
                     </ProtectedRoute>
                 }
             />
@@ -77,7 +96,9 @@ const AppRoutes = () => {
                 path="/history"
                 element={
                     <ProtectedRoute>
-                        <History />
+                        <WithNavigation>
+                            <History />
+                        </WithNavigation>
                     </ProtectedRoute>
                 }
             />
@@ -85,7 +106,9 @@ const AppRoutes = () => {
                 path="/progress"
                 element={
                     <ProtectedRoute>
-                        <Progress />
+                        <WithNavigation>
+                            <Progress />
+                        </WithNavigation>
                     </ProtectedRoute>
                 }
             />
