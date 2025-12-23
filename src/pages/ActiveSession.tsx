@@ -17,7 +17,7 @@ import useVoiceCommands from '../hooks/useVoiceCommands';
 const ActiveSession = () => {
     const { routineId } = useParams<{ routineId: string }>();
     const { user } = useAuth();
-    const { voiceEnabled: globalVoiceEnabled } = useSettings();
+    const { voiceEnabled: globalVoiceEnabled, triggerPhrases } = useSettings();
     const navigate = useNavigate();
 
     const [routine, setRoutine] = useState<Routine | null>(null);
@@ -201,7 +201,7 @@ const ActiveSession = () => {
 
     // Voice commands hook
     useVoiceCommands(transcript, {
-        triggerPhrases: ['hey trainer', 'hey traina', 'a trainer', 'trainer', 'who trainer', 'the trainer'],
+        triggerPhrases: triggerPhrases,
         onCommand: handleVoiceCommand,
         enabled: voiceEnabled && isSessionStarted
     });

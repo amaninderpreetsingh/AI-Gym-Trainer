@@ -1,4 +1,6 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { useAuth } from './AuthContext';
+import { getUserSettings, updateTriggerPhrases as updateTriggerPhrasesInDb, DEFAULT_TRIGGER_PHRASES } from '../services/userService';
 
 type SpeechProvider = 'browser' | 'assemblyai';
 
@@ -9,6 +11,8 @@ interface SettingsContextType {
     setAssemblyApiKey: (key: string) => void;
     voiceEnabled: boolean;
     setVoiceEnabled: (enabled: boolean) => void;
+    triggerPhrases: string[];
+    setTriggerPhrases: (phrases: string[]) => void;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -26,6 +30,8 @@ interface SettingsProviderProps {
 }
 
 export const SettingsProvider = ({ children }: SettingsProviderProps) => {
+    const { user } = useAuth();
+
     const [speechProvider, setSpeechProviderState] = useState<SpeechProvider>(() => {
         const saved = localStorage.getItem('speechProvider');
         return (saved as SpeechProvider) || 'browser';
@@ -39,6 +45,25 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
         const saved = localStorage.getItem('voiceEnabled');
         return saved !== 'false';
     });
+
+    const [triggerPhrases, setTriggerPhrasesState] = useState<string[]>(DEFAULT_TRIGGER_PHRASES);
+
+    // Load settings from DB when user logs in
+    useEffect(() => {
+        const loadSettings = async () => {
+            if (user) {
+                try {
+                    const settings = await getUserSettings(user.uid);
+                    setTriggerPhrasesState(settings.triggerPhrases);
+                } catch (error) {
+                    console.error('Failed to load user settings:', error);
+                }
+            } else {
+                setTriggerPhrasesState(DEFAULT_TRIGGER_PHRASES);
+            }
+        };
+        loadSettings();
+    }, [user]);
 
     const setSpeechProvider = (provider: SpeechProvider) => {
         setSpeechProviderState(provider);
@@ -55,6 +80,17 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
         localStorage.setItem('voiceEnabled', enabled.toString());
     };
 
+    const setTriggerPhrases = async (phrases: string[]) => {
+        setTriggerPhrasesState(phrases);
+        if (user) {
+            try {
+                await updateTriggerPhrasesInDb(user.uid, phrases);
+            } catch (error) {
+                console.error('Failed to save trigger phrases:', error);
+            }
+        }
+    };
+
     // Check if env has AssemblyAI key
     useEffect(() => {
         const envKey = import.meta.env.VITE_ASSEMBLYAI_API_KEY;
@@ -69,7 +105,9 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
         assemblyApiKey,
         setAssemblyApiKey,
         voiceEnabled,
-        setVoiceEnabled
+        setVoiceEnabled,
+        triggerPhrases,
+        setTriggerPhrases
     };
 
     return (

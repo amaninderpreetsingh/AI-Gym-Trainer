@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Mic, Zap, Key, Check, AlertCircle, LogOut } from 'lucide-react';
+import { ArrowLeft, Mic, Zap, Key, Check, AlertCircle, LogOut, Plus, X } from 'lucide-react';
 import { useSettings } from '../contexts/SettingsContext';
 import { useAuth } from '../contexts/AuthContext';
+import { DEFAULT_TRIGGER_PHRASES } from '../services/userService';
 
 const Settings = () => {
     const navigate = useNavigate();
@@ -13,12 +14,26 @@ const Settings = () => {
         assemblyApiKey,
         setAssemblyApiKey,
         voiceEnabled,
-        setVoiceEnabled
+        setVoiceEnabled,
+        triggerPhrases,
+        setTriggerPhrases
     } = useSettings();
     const { logout } = useAuth();
 
     const [tempApiKey, setTempApiKey] = useState(assemblyApiKey);
     const [saved, setSaved] = useState(false);
+    const [newPhrase, setNewPhrase] = useState('');
+
+    const handleAddPhrase = () => {
+        if (newPhrase.trim() && !triggerPhrases.includes(newPhrase.trim().toLowerCase())) {
+            setTriggerPhrases([...triggerPhrases, newPhrase.trim().toLowerCase()]);
+            setNewPhrase('');
+        }
+    };
+
+    const handleRemovePhrase = (phrase: string) => {
+        setTriggerPhrases(triggerPhrases.filter(p => p !== phrase));
+    };
 
     const handleSaveApiKey = () => {
         setAssemblyApiKey(tempApiKey);
@@ -194,6 +209,53 @@ const Settings = () => {
                             )}
                         </motion.div>
                     )}
+                    {/* Trigger Phrases */}
+                    <div className="pt-6 mt-6 border-t border-dark-700">
+                        <h3 className="text-md font-semibold mb-3">Trigger Phrases</h3>
+                        <p className="text-sm text-dark-400 mb-4">
+                            Words that wake up the AI to listen for your set logs.
+                        </p>
+
+                        <div className="flex gap-2 mb-4">
+                            <input
+                                type="text"
+                                value={newPhrase}
+                                onChange={(e) => setNewPhrase(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleAddPhrase()}
+                                placeholder="Add new phrase (e.g. 'Hey Gym Bro')"
+                                className="flex-1 px-4 py-2.5 rounded-xl bg-dark-800 border border-dark-700 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-colors text-white placeholder-dark-500"
+                            />
+                            <motion.button
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={handleAddPhrase}
+                                disabled={!newPhrase.trim()}
+                                className="p-2.5 rounded-xl bg-primary-500 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <Plus className="w-5 h-5" />
+                            </motion.button>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                            {triggerPhrases.map((phrase) => (
+                                <motion.span
+                                    key={phrase}
+                                    layout
+                                    className="px-3 py-1.5 rounded-lg bg-dark-700/50 border border-dark-600 text-sm flex items-center gap-2 group"
+                                >
+                                    {phrase}
+                                    {!DEFAULT_TRIGGER_PHRASES.includes(phrase) && (
+                                        <button
+                                            onClick={() => handleRemovePhrase(phrase)}
+                                            className="p-0.5 rounded-full hover:bg-dark-600 text-dark-400 hover:text-red-400 transition-colors"
+                                        >
+                                            <X className="w-3 h-3" />
+                                        </button>
+                                    )}
+                                </motion.span>
+                            ))}
+                        </div>
+                    </div>
                 </motion.section>
 
                 {/* Sign Out Button */}
